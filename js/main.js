@@ -93,6 +93,12 @@ function onTap(id, fn) {
   const b = typeof id === 'string' ? $(id) : id;
   b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); sound.unlock(); fn(e); });
 }
+// кнопки, которым нужен «настоящий» жест (полный экран, поворот, первый звук на iPhone)
+function onClick(id, fn) {
+  $(id).addEventListener('click', (e) => { e.preventDefault(); sound.unlock(); fn(e); });
+}
+// звук на iPhone включается только после отпускания пальца
+for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => sound.unlock(), { passive: true });
 
 // ---------- полный экран ----------
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -100,16 +106,50 @@ const standalone = () => navigator.standalone || window.matchMedia('(display-mod
 const coarse = window.matchMedia('(pointer: coarse)').matches;
 function canFullscreen() { const d = document.documentElement; return !!(d.requestFullscreen || d.webkitRequestFullscreen); }
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-function goFullscreen() {
-  if (isFullscreen() || standalone()) return;
+// Полный экран и поворот разрешены только из «клика» (жест пользователя)
+async function enterFullscreen() {
+  if (isFullscreen() || standalone()) return true;
   const d = document.documentElement;
   const fn = d.requestFullscreen || d.webkitRequestFullscreen;
-  if (!fn) return;
-  try {
-    const p = fn.call(d, { navigationUI: 'hide' });
-    if (p && p.then) p.then(() => screen.orientation && screen.orientation.lock && screen.orientation.lock('landscape').catch(() => {})).catch(() => {});
-  } catch (_) { /* */ }
+  if (!fn) return false;
+  try { await fn.call(d, { navigationUI: 'hide' }); return true; } catch (_) { return false; }
 }
+function exitFullscreen() {
+  const fn = document.exitFullscreen || document.webkitExitFullscreen;
+  if (!fn) return;
+  try { const p = fn.call(document); if (p && p.catch) p.catch(() => {}); } catch (_) { /* */ }
+}
+async function lockOrientation(o) {
+  try { await screen.orientation.lock(o); return true; } catch (_) { return false; }
+}
+function goFullscreen() { enterFullscreen().then((ok) => ok && lockOrientation('landscape')); }
+const canRotate = !isIOS && coarse && !!(screen.orientation && screen.orientation.lock);
+async function rotateScreen() {
+  const target = window.innerHeight > window.innerWidth ? 'landscape' : 'portrait';
+  await enterFullscreen();
+  if (!(await lockOrientation(target))) flashRotate();
+}
+function toggleFullscreen() {
+  if (isFullscreen()) exitFullscreen();
+  else if (canFullscreen() && !standalone()) goFullscreen();
+  else if (isIOS && !standalone()) show('iosHint', true);
+}
+let rotTimer = 0;
+function flashRotate() {
+  show('rotFlash', true);
+  clearTimeout(rotTimer);
+  rotTimer = setTimeout(() => show('rotFlash', false), 2500);
+}
+function syncScreenButtons() {
+  const fs = isFullscreen();
+  for (const id of ['btnFull', 'pauseFull']) {
+    $(id).classList.toggle('active', fs);
+    $(id).classList.toggle('hidden', standalone() || (!canFullscreen() && !isIOS));
+  }
+  for (const id of ['btnRotate', 'pauseRotate']) $(id).classList.toggle('hidden', !canRotate);
+}
+document.addEventListener('fullscreenchange', syncScreenButtons);
+document.addEventListener('webkitfullscreenchange', syncScreenButtons);
 
 // экран не гаснет во время игры
 let wakeLock = null;
@@ -199,7 +239,7 @@ function closeOverlay(click = true) {
 }
 
 // ---------- кнопки ----------
-onTap('btnPlay', play);
+onClick('btnPlay', play);
 onTap('btnLevels', () => { sound.click(); openOverlay('levels'); });
 onTap('btnGarage', () => { sound.click(); openOverlay('garage'); });
 onTap('btnChests', () => { sound.click(); openOverlay('chest'); });
@@ -217,11 +257,10 @@ onTap('crashChests', () => { sound.click(); openOverlay('chest'); });
 onTap('garageBack', () => closeOverlay());
 onTap('levelsBack', () => closeOverlay());
 onTap('iosOk', () => { sound.click(); show('iosHint', false); });
-onTap('btnFull', () => {
-  sound.click();
-  if (canFullscreen()) goFullscreen();
-  else if (isIOS) show('iosHint', true);
-});
+onClick('btnFull', () => { sound.click(); toggleFullscreen(); });
+onClick('pauseFull', () => { sound.click(); toggleFullscreen(); });
+onClick('btnRotate', () => { sound.click(); rotateScreen(); });
+onClick('pauseRotate', () => { sound.click(); rotateScreen(); });
 const toggleMusic = () => { save.music = !save.music; sound.setMusic(save.music); persist(); refresh(); };
 const toggleSound = () => { save.sound = !save.sound; sound.setSound(save.sound); persist(); refresh(); };
 onTap('btnMusic', toggleMusic);
@@ -398,6 +437,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 // для проверки в браузере
 window.__game = { world, save, renderer, setState, play, input, get state() { return state; }, openOverlay, closeOverlay };
 
+syncScreenButtons();
 setState('menu');
 if (isIOS && !standalone() && !save.seen.ios) { save.seen.ios = 1; persist(); show('iosHint', true); }
 requestAnimationFrame(frame);

@@ -62,6 +62,7 @@
         <button class="round small" id="btnMusic" aria-label="Музыка">🎵</button>
         <button class="round small" id="btnSound" aria-label="Звук">🔊</button>
         <button class="round small" id="btnFull" aria-label="Во весь экран"><span class="i-full"></span></button>
+        <button class="round small rot-btn" id="btnRotate" aria-label="Повернуть экран"><span>📱</span></button>
       </div>
     </div>
     <div class="logo">
@@ -89,6 +90,8 @@
     <div class="toggles center">
       <button class="round small" id="pauseMusic">🎵</button>
       <button class="round small" id="pauseSound">🔊</button>
+      <button class="round small" id="pauseFull" aria-label="Во весь экран"><span class="i-full"></span></button>
+      <button class="round small rot-btn" id="pauseRotate" aria-label="Повернуть экран"><span>📱</span></button>
     </div>
   </div>
 
@@ -136,6 +139,9 @@
     <div class="chest-rewards" id="chestRewards"></div>
     <div class="tap-hint" id="chestHint">👆</div>
   </div>
+
+  <!-- ===== «Поверни телефон» (если браузер не умеет поворачивать сам) ===== -->
+  <div id="rotFlash" class="hidden"><span>📱</span><span class="arrow">↻</span></div>
 
   <!-- ===== Подсказка для iPhone ===== -->
   <div id="iosHint" class="screen dim hidden">
