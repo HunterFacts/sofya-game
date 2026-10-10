@@ -227,7 +227,8 @@ function startLevel(L) {
 
 function saveRun() {
   const car = world.car;
-  if (world.crashed || !car.grounded || Math.abs(wrapAngle(car.a)) > 0.8) return;
+  // в особых режимах (бонус-уровень) место не запоминаем — продолжим с обычного уровня
+  if (world.mode !== 'normal' || world.crashed || !car.grounded || Math.abs(wrapAngle(car.a)) > 0.8) return;
   save.run = { L: world.L, x: Math.round(car.x * 10) / 10, taken: world.takenIds };
   save.level = world.L;
   persist();
