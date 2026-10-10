@@ -470,11 +470,13 @@ export class Renderer {
   // Машина отдельно (для гаража и меню)
   static drawPreview(ctx, w, h, look, mood, t, scale) {
     const v = vehicleById(look.vehicle);
-    const xs = v.hull.map((p) => p.x);
-    const minX = Math.min(...xs), maxX = Math.max(...xs), len = maxX - minX;
-    const s = scale || Math.min(w / (len + 1.3), h / 3.4);
+    const xs = v.hull.map((p) => p.x), pv = v.preview || {};
+    // рамка рисунка: контур кузова или v.preview {x0, x1, y0}, если рисунок выступает (хвост, пламя)
+    const minX = pv.x0 ?? Math.min(...xs), maxX = pv.x1 ?? Math.max(...xs), len = maxX - minX;
+    const up = Math.max(0, -1.2 - (pv.y0 ?? Math.min(...v.hull.map((p) => p.y))));   // насколько выше пикапа
+    const s = scale || Math.min(w / (len + 1.3), h / (3.4 + up));
     ctx.save();
-    ctx.translate(w / 2, h * 0.58);
+    ctx.translate(w / 2, h * ((1.97 + up) / (3.4 + up)));
     ctx.scale(s, s);
     ctx.translate(-(minX + maxX) / 2, 0);
     const ph = v.phys;
@@ -485,7 +487,8 @@ export class Renderer {
       wheels: ph.anchors.map((a) => ({ x: a.x, y: y + wy(a), rot: t * 2 })),
     };
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.beginPath(); ctx.ellipse((minX + maxX) / 2, 0.9, len * 0.6, 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    const hx0 = Math.min(...xs), hx1 = Math.max(...xs);
+    ctx.beginPath(); ctx.ellipse((hx0 + hx1) / 2, 0.9, (hx1 - hx0) * 0.6, 0.14, 0, 0, Math.PI * 2); ctx.fill();
     drawCar(ctx, state, look, typeof mood === 'object' && mood ? { ...mood, t } : { mood, t });
     ctx.restore();
   }
