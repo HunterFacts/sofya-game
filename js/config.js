@@ -3,15 +3,7 @@
 export const PHYS = {
   dt: 1 / 480,          // шаг физики (сек)
   g: 18,                // гравитация (м/с²), ось Y направлена вниз
-  wheelR: 0.5,
-  wheelMass: 1.1,
-  bodyMass: 7,
-  bodyInertia: 9,
-  // точки крепления подвески в системе машины (м)
-  anchors: [{ x: -1.2, y: 0.25 }, { x: 1.2, y: 0.25 }],
-  rest: 0.45,           // длина подвески в покое
-  bump: 0.2,            // минимальная длина (отбойник)
-  maxExt: 0.72,         // максимальная длина
+  wheelMass: 1.1,       // масса колеса радиусом 0.5 м (размеры машины — в vehicles.js)
   kSusp: 900, cSusp: 45,
   kSide: 9000, cSide: 160,
   kStop: 25000, cStop: 220,
@@ -19,14 +11,6 @@ export const PHYS = {
   brake: 45,
   revSpeed: 5,
 };
-
-// Контур кузова для столкновений с землёй. roof — касание = авария.
-export const HULL = [
-  { x: 1.9, y: 0.25 }, { x: 1.85, y: -0.3 }, { x: 1.1, y: -0.35 },
-  { x: -1.9, y: 0.25 }, { x: -1.9, y: -0.45 },
-  { x: 0, y: 0.4 },
-  { x: 0.75, y: -1.15, roof: true }, { x: -0.1, y: -1.2, roof: true }, { x: -0.95, y: -1.15, roof: true },
-];
 
 // ---------- Улучшения ----------
 export const UPGRADES = [
@@ -39,14 +23,14 @@ export const UPGRADES = [
 export const MAX_UP = 10;
 export const upgradePrice = (u, lvl) => Math.round(u.base * Math.pow(1.45, lvl) / 5) * 5;
 
-export function carParams(up, g) {
+export function carParams(up, g, mult = { torque: 1, speed: 1, grip: 1, air: 1 }) {
   const e = up.engine, gr = up.grip, b = up.balance;
   return {
     g,
-    torque: 16 + 3.2 * e,
-    maxSpeed: 11 + 1.5 * e,
-    grip: 1.05 + 0.09 * gr,
-    airTorque: 4 + 0.9 * b,
+    torque: (16 + 3.2 * e) * mult.torque,
+    maxSpeed: (11 + 1.5 * e) * mult.speed,
+    grip: (1.05 + 0.09 * gr) * mult.grip,
+    airTorque: (4 + 0.9 * b) * mult.air,
     assist: 1.6 + 0.8 * b,
     kSusp: PHYS.kSusp,
     turboForce: 85 + 10 * up.turbo,

@@ -1,7 +1,7 @@
 // Прогресс хранится в браузере (localStorage), чтобы продолжать с того же места.
 export const KEY = 'sofya-car-v1';
 
-const DEFAULT = () => ({
+const BASE = () => ({
   v: 1,
   coins: 0,
   level: 0,          // текущий уровень (с него продолжаем и с него начинаем после аварии)
@@ -10,8 +10,8 @@ const DEFAULT = () => ({
   up: { engine: 0, grip: 0, balance: 0, turbo: 0, magnet: 0 },
   inv: { turbo: 1, magnet: 1, shield: 1 },
   chests: [],        // неоткрытые сундуки: 'wood' | 'silver' | 'gold'
-  look: { paint: 'pink', animal: 'marissa', hat: 'none' },
-  owned: { paint: ['pink'], animal: ['marissa'], hat: ['none', 'bow'] },
+  look: { paint: 'pink', animal: 'marissa', hat: 'none', vehicle: 'pickup', sofya: { hair: 'long', outfit: 'pink', acc: 'heart' } },
+  owned: { paint: ['pink'], animal: ['marissa'], hat: ['none', 'bow'], vehicle: ['pickup'] },
   music: true,
   sound: true,
   run: null,         // {L, x, taken:[]} — место, где остановились
@@ -19,12 +19,28 @@ const DEFAULT = () => ({
   t: 0,              // время последней записи (чтобы старая вкладка не затёрла свежий прогресс)
 });
 
+const isObj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+
+// Новые возможности добавляют свои поля сохранения (до первой загрузки — при импорте модуля).
+// Пустой объект {} = свободный словарь (сохраняются любые ключи), как stars и seen.
+const extra = {};
+export function addDefaults(obj) { deepAssign(extra, obj); }
+function deepAssign(dst, src) {
+  for (const k of Object.keys(src)) {
+    if (isObj(src[k]) && Object.keys(src[k]).length && isObj(dst[k])) deepAssign(dst[k], src[k]);
+    else dst[k] = structuredClone(src[k]);
+  }
+  return dst;
+}
+const DEFAULT = () => deepAssign(BASE(), structuredClone(extra));
+
 function merge(base, data) {
   for (const k of Object.keys(base)) {
     if (data[k] === undefined) continue;
-    if (base[k] && typeof base[k] === 'object' && !Array.isArray(base[k]) && data[k] && typeof data[k] === 'object') {
-      base[k] = merge(base[k], data[k]);
-      if (k === 'stars' || k === 'seen') base[k] = { ...data[k] };
+    if (isObj(base[k]) && isObj(data[k])) {
+      base[k] = Object.keys(base[k]).length ? merge(base[k], data[k]) : { ...data[k] };
+    } else if (Array.isArray(base[k]) && !Array.isArray(data[k])) {
+      continue; // испорченное поле — оставляем значение по умолчанию
     } else base[k] = data[k];
   }
   return base;

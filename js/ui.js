@@ -72,6 +72,49 @@ function upgradeIcon(cv, id, look) {
   }
 }
 
+// ---------- Реестры для новых возможностей ----------
+// Вкладка гаража: { id, icon, order, render(box, G) } — G см. Garage.helpers()
+const extraTabs = [];
+export function registerGarageTab(tab) {
+  const i = extraTabs.findIndex((t) => t.id === tab.id);
+  if (i >= 0) extraTabs[i] = tab; else extraTabs.push(tab);
+  extraTabs.sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+// Коллекционная вещь (может выпасть из сундука):
+// { type, w (вес в сундуке), rare? (вероятность вообще попасть в розыгрыш, 0..1),
+//   items: [{id, price, name?, chest?: false}], owned(save) → массив id, preview(ctx, w, h, id, save, t) }
+const cosmetics = [];
+export function registerCosmetic(def) {
+  const i = cosmetics.findIndex((c) => c.type === def.type);
+  if (i >= 0) cosmetics[i] = def; else cosmetics.push(def);
+}
+export const cosmeticOf = (type) => cosmetics.find((c) => c.type === type);
+
+const zooPreview = (kind) => (ctx, w, h, id, save, t = 1) => {
+  ctx.save();
+  ctx.translate(w / 2, h * 0.55);
+  const k = Math.min(w, h) / 3.1;
+  ctx.scale(k, k);
+  drawAnimal(ctx, kind === 'animal' ? id : save.look.animal, 'happy', t, kind === 'hat' ? id : save.look.hat);
+  ctx.restore();
+};
+// Зверят покупают за монеты: из сундука они выпадают очень редко (0,5% на сундук)
+registerCosmetic({ type: 'animal', w: 3, rare: 0.005, items: ANIMALS, owned: (s) => s.owned.animal, preview: zooPreview('animal') });
+registerCosmetic({ type: 'hat', w: 2, items: HATS, owned: (s) => s.owned.hat, preview: zooPreview('hat') });
+registerCosmetic({
+  type: 'paint', w: 2, items: PAINTS, owned: (s) => s.owned.paint,
+  preview: (ctx, w, h, id, save, t = 0.5) => Renderer.drawPreview(ctx, w, h, { ...save.look, paint: id }, 'happy', t),
+});
+
+const BUILTIN_TABS = [
+  { id: 'up', icon: '🔧' },
+  { id: 'boost', icon: '⚡' },
+  { id: 'paint', icon: '🎨' },
+  { id: 'animal', icon: '🐾' },
+  { id: 'hat', icon: '👑' },
+];
+
 // ---------- Гараж ----------
 export class Garage {
   constructor(ctx) {
@@ -88,7 +131,13 @@ export class Garage {
     this.preview = $('garagePreview');
   }
 
-  open() { this.render(); this.anim = true; this.loop(); }
+  buildTabs() {
+    const tabs = [...BUILTIN_TABS, ...extraTabs];
+    if (!tabs.some((t) => t.id === this.tab)) this.tab = 'up';
+    $('tabs').innerHTML = tabs.map((t) => `<button data-tab="${t.id}" class="${t.id === this.tab ? 'on' : ''}">${t.icon}</button>`).join('');
+  }
+
+  open(tab) { if (tab) this.tab = tab; this.buildTabs(); this.render(); this.anim = true; this.loop(); }
   close() { this.anim = false; }
 
   loop() {
@@ -123,12 +172,61 @@ export class Garage {
     return true;
   }
 
+  // Помощник для вкладок новых возможностей
+  helpers() {
+    const G = {
+      save: this.c.save, sound: this.c.sound, el, coinPill, Renderer, drawAnimal,
+      pay: (price, card) => this.pay(price, card),
+      done: () => this.done(),
+      cheer: () => this.cheer(),
+      // карточка с картинкой 260×195
+      card(cls = '') {
+        const card = el('button', `card ${cls}`);
+        const cv = el('canvas'); cv.width = 260; cv.height = 195;
+        card.appendChild(cv);
+        $('cards').appendChild(card);
+        return { card, cv, ctx: cv.getContext('2d') };
+      },
+      // готовая вкладка коллекции: купить → выбрать
+      // opt = { items, isOwned(id), own(id), isSelected(id), select(id), preview(ctx, w, h, item) }
+      collection: (opt) => this.collection(opt),
+    };
+    return G;
+  }
+
+  collection(opt) {
+    const s = this.c.save;
+    for (const it of opt.items) {
+      const owned = opt.isOwned(it.id), sel = opt.isSelected(it.id);
+      const card = el('button', `card ${owned ? 'owned' : s.coins >= it.price ? 'can' : 'cant'} ${sel ? 'sel' : ''}`);
+      const cv = el('canvas'); cv.width = 260; cv.height = 195;
+      card.appendChild(cv);
+      $('cards').appendChild(card);
+      opt.preview(cv.getContext('2d'), 260, 195, it);
+      if (it.name) card.insertAdjacentHTML('beforeend', `<div class="name">${it.name}</div>`);
+      card.insertAdjacentHTML('beforeend', owned ? `<div class="check">${sel ? '✓' : ''}</div>` : coinPill(it.price));
+      card.onclick = () => {
+        if (!owned) {
+          if (!this.pay(it.price, card)) return;
+          opt.own(it.id);
+        } else this.c.sound.click();
+        opt.select(it.id);
+        this.cheer();
+        if (opt.onSelect) opt.onSelect(it.id);
+        this.done();
+      };
+    }
+  }
+
   render() {
     const s = this.c.save, box = $('cards');
     box.innerHTML = '';
     box.scrollTop = 0;
     const add = (card) => { box.appendChild(card); return card; };
     const look = s.look;
+
+    const extra = extraTabs.find((t) => t.id === this.tab);
+    if (extra) { extra.render(box, this.helpers()); return; }
 
     if (this.tab === 'up') {
       for (const u of UPGRADES) {
@@ -161,33 +259,16 @@ export class Garage {
       }
     } else {
       const kind = this.tab;
-      const list = kind === 'paint' ? PAINTS : kind === 'animal' ? ANIMALS : HATS;
-      for (const it of list) {
-        const owned = s.owned[kind].includes(it.id), sel = look[kind] === it.id;
-        const card = add(el('button', `card ${owned ? 'owned' : s.coins >= it.price ? 'can' : 'cant'} ${sel ? 'sel' : ''}`));
-        const cv = el('canvas'); cv.width = 260; cv.height = 195;
-        card.appendChild(cv);
-        const ctx = cv.getContext('2d');
-        if (kind === 'paint') {
-          Renderer.drawPreview(ctx, 260, 195, { ...look, paint: it.id }, 'normal', 0.5);
-        } else {
-          ctx.translate(130, 108);
-          ctx.scale(62, 62);
-          drawAnimal(ctx, kind === 'animal' ? it.id : look.animal, 'happy', 1, kind === 'hat' ? it.id : look.hat);
-        }
-        if (it.name) card.insertAdjacentHTML('beforeend', `<div class="name">${it.name}</div>`);
-        card.insertAdjacentHTML('beforeend', owned ? `<div class="check">${sel ? '✓' : ''}</div>` : coinPill(it.price));
-        card.onclick = () => {
-          if (!owned) {
-            if (!this.pay(it.price, card)) return;
-            s.owned[kind].push(it.id);
-          } else this.c.sound.click();
-          look[kind] = it.id;
-          this.cheer();
-          if (kind === 'animal' && it.id === 'marissa') this.c.sound.meow();
-          this.done();
-        };
-      }
+      const def = cosmeticOf(kind);
+      this.collection({
+        items: def.items,
+        isOwned: (id) => def.owned(s).includes(id),
+        own: (id) => def.owned(s).push(id),
+        isSelected: (id) => look[kind] === id,
+        select: (id) => { look[kind] = id; },
+        onSelect: (id) => { if (kind === 'animal' && id === 'marissa') this.c.sound.meow(); },
+        preview: (ctx, w, h, it) => def.preview(ctx, w, h, it.id, s),
+      });
     }
   }
 
@@ -218,13 +299,15 @@ export function rollChest(tier, save) {
   for (const [id, n] of Object.entries(got)) out.push({ type: 'booster', id, n });
   if (Math.random() < cfg.cosmetic) {
     const pool = [];
-    for (const a of ANIMALS) if (!save.owned.animal.includes(a.id)) pool.push({ type: 'animal', id: a.id, w: 3 });
-    for (const h of HATS) if (!save.owned.hat.includes(h.id)) pool.push({ type: 'hat', id: h.id, w: 2 });
-    for (const p of PAINTS) if (!save.owned.paint.includes(p.id)) pool.push({ type: 'paint', id: p.id, w: 2 });
+    for (const def of cosmetics) {
+      if (def.rare !== undefined && Math.random() >= def.rare) continue;
+      const own = def.owned(save);
+      for (const it of def.items) if (!own.includes(it.id) && it.chest !== false) pool.push({ type: def.type, id: it.id, w: it.w || def.w || 2 });
+    }
     if (pool.length) {
       let r = Math.random() * pool.reduce((n, p) => n + p.w, 0);
       const pick = pool.find((p) => (r -= p.w) < 0) || pool[0];
-      save.owned[pick.type].push(pick.id);
+      cosmeticOf(pick.type).owned(save).push(pick.id);
       save.fresh = true;
       out.push(pick);
     } else {
@@ -301,11 +384,8 @@ export class ChestOpener {
         card.appendChild(cv);
         card.insertAdjacentHTML('beforeend', `+${r.n}`);
       } else {
-        if (r.type === 'paint') Renderer.drawPreview(ctx, 192, 144, { ...this.c.save.look, paint: r.id }, 'happy', 0.5);
-        else {
-          ctx.translate(96, 80); ctx.scale(46, 46);
-          drawAnimal(ctx, r.type === 'animal' ? r.id : this.c.save.look.animal, 'happy', 1, r.type === 'hat' ? r.id : this.c.save.look.hat);
-        }
+        const def = cosmeticOf(r.type);
+        if (def) def.preview(ctx, 192, 144, r.id, this.c.save);
         card.appendChild(cv);
         card.insertAdjacentHTML('beforeend', '★');
         if (r.type === 'animal' && r.id === 'marissa') this.c.sound.meow();

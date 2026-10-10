@@ -1,14 +1,18 @@
 // Игровой заезд: машина, монетки, бонусы, финиш, авария, частицы.
 import { PHYS, carParams, chestForLevel } from './config.js';
 import { Car } from './car.js';
-import { levelStart, levelAt, levelItems, biomeOf, slopeAt, groundY } from './terrain.js';
+import { levelStart, levelAt, levelItems, biomeOf, biomeAtX, slopeAt, groundY } from './terrain.js';
 import { wrapAngle, clamp } from './rng.js';
+import { emit } from './hooks.js';
+import { vehicleById } from './vehicles.js';
 
 const COIN_POINTS = [{ x: 0, y: -0.5 }, { x: 1.3, y: -0.2 }, { x: -1.3, y: -0.3 }, { x: 0, y: 0.5 }];
 
 export class World {
   constructor() {
     this.car = new Car();
+    this.mode = 'normal';      // 'normal' — уровни; другие режимы (бонус-уровень) ведут свои возможности
+    this.reaction = null;      // {pet, sofya, pose, until} — реакция на тап, гудок и т.п.
     this.items = new Map();
     this.particles = [];
     this.events = [];
@@ -18,9 +22,17 @@ export class World {
     this.start(0);
   }
 
+  // Сменить машину (из гаража)
+  setVehicle(id) {
+    if (this.car.vehicle.id === id) return;
+    this.car.setVehicle(vehicleById(id));
+  }
+
   // Начать уровень L (или продолжить с позиции x)
   start(L, x = null, taken = null) {
     this.L = L;
+    this.mode = 'normal';
+    this.reaction = null;
     this.items.clear();
     this.ensureItems();
     if (taken) {
@@ -40,10 +52,16 @@ export class World {
     this.particles.length = 0;
     this.combo = 0;
     this.comboT = 0;
+    emit('world:start', this, L, sx);
   }
 
   ensureItems() {
-    for (const k of [this.L, this.L + 1]) if (!this.items.has(k)) this.items.set(k, levelItems(k));
+    for (const k of [this.L, this.L + 1]) {
+      if (this.items.has(k)) continue;
+      const items = levelItems(k);
+      emit('world:items', k, items);
+      this.items.set(k, items);
+    }
     for (const k of this.items.keys()) if (k < this.L) this.items.delete(k);
   }
 
@@ -64,11 +82,14 @@ export class World {
     return true;
   }
 
+  // Временная реакция Софьи и зверька: {pet:'happy', sofya:'happy', pose:'wave'} на time секунд
+  react(r, time = 1.2) { this.reaction = { ...r, until: this.t + time }; }
+
   update(dt, ctl, up) {
     this.t += dt;
     const car = this.car;
-    const biome = biomeOf(levelAt(car.x));
-    const U = carParams(up, PHYS.g * biome.gravity);
+    const biome = biomeAtX(car.x);
+    const U = carParams(up, PHYS.g * (biome.gravity || 1), car.vehicle.mult);
     this.U = U;
     U.turbo = this.turbo > 0;
     const input = this.crashed ? { gas: false, brake: false } : ctl;
@@ -103,6 +124,7 @@ export class World {
         this.crashT = 0;
         this.burst(car.x, car.y - 1, 'star', 8, '#ffe14d');
         this.events.push({ type: 'crash' });
+        emit('world:crash', this);
       }
     }
     car.roofHit = false;
@@ -118,18 +140,21 @@ export class World {
       if (this.stuckT > 2) { this.stuckT = 0; car.rescue(1); this.burst(car.x, car.y, 'pop', 12, '#ffffff'); }
     } else this.stuckT = 0;
 
-    // финиш уровня
-    if (!this.crashed && car.x >= levelStart(this.L + 1)) {
+    // финиш уровня (в особых режимах, например в бонус-уровне, уровнями управляет сама возможность)
+    if (this.mode === 'normal' && !this.crashed && car.x >= levelStart(this.L + 1)) {
       const L = this.L, got = this.gotCoins, total = this.level.total;
       this.L = L + 1;
       this.ensureItems();
       this.confetti(levelStart(L + 1), groundY(levelStart(L + 1)));
-      this.events.push({ type: 'level', L, got, total, stars: got * 2 >= total ? 3 : 2, chest: chestForLevel(L) });
+      const e = { type: 'level', L, got, total, stars: got * 2 >= total ? 3 : 2, chest: chestForLevel(L) };
+      emit('world:level', this, e);
+      this.events.push(e);
     }
 
-    this.collect(dt, U);
+    if (this.mode === 'normal') this.collect(dt, U);
     this.updateParticles(dt);
     this.emitEffects(dt);
+    emit('world:update', this, dt, U, input);
   }
 
   collect(dt, U) {
@@ -198,7 +223,7 @@ export class World {
   emitEffects(dt) {
     const car = this.car, ps = this.particles;
     if (ps.length > 400) ps.splice(0, ps.length - 400);
-    const biome = biomeOf(levelAt(car.x));
+    const biome = biomeAtX(car.x);
     for (const wh of car.wheels) {
       if (wh.contact && (wh.slip > 2.5 || (this.input.gas && car.speed > 4)) && Math.random() < dt * 25) {
         ps.push({ type: 'dust', x: wh.x - 0.3, y: wh.y + 0.4, vx: -1 - Math.random() * 2, vy: -1 - Math.random(), life: 0.6, max: 0.6, color: biome.dust, size: 0.25 + Math.random() * 0.2 });
@@ -233,10 +258,24 @@ export class World {
   // Настроение зверька и Софьи
   mood() {
     if (this.crashed) return 'dizzy';
+    if (this.reaction && this.reaction.pet && this.t < this.reaction.until) return this.reaction.pet;
     if (this.turbo > 0) return 'turbo';
     const tilt = Math.abs(wrapAngle(this.car.a));
     if (this.airT > 0.6 || tilt > 1.1) return 'scared';
     if (this.happyT > 0) return 'happy';
     return 'normal';
+  }
+
+  sofyaMood() {
+    const r = this.reaction;
+    if (r && r.sofya && this.t < r.until && !this.crashed) return r.sofya;
+    return this.mood();
+  }
+
+  // Всё, что нужно для отрисовки лиц в окнах машины
+  face(t) {
+    const r = this.reaction;
+    const pose = r && r.pose && this.t < r.until && !this.crashed ? r.pose : null;
+    return { mood: this.mood(), sofyaMood: this.sofyaMood(), pose, t };
   }
 }

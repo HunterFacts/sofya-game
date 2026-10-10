@@ -7,13 +7,18 @@
 // тогда остаётся старая рабочая версия) и включается при следующем открытии меню.
 // Поэтому при любом изменении файлов игры VERSION нужно увеличить, а новые файлы — вписать в FILES
 // (git-хук tools/pre-commit делает и проверяет это сам).
-const VERSION = 3;
+const VERSION = 4;
 const PREFIX = 'sofya-car-';
 const CACHE = PREFIX + VERSION;
 const FILES = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/main.js', 'js/config.js', 'js/rng.js', 'js/terrain.js', 'js/car.js', 'js/world.js',
   'js/render.js', 'js/art.js', 'js/audio.js', 'js/save.js', 'js/ui.js',
+  'js/hooks.js', 'js/draw-utils.js', 'js/vehicles.js', 'js/sofya.js',
+  'js/features/index.js', 'js/features/kittens.js', 'js/features/house.js', 'js/features/dressup.js',
+  'js/features/garage-vehicles.js', 'js/features/flips.js', 'js/features/horn.js', 'js/features/weather.js',
+  'js/features/bonus.js', 'js/features/daily.js', 'js/features/stickers.js', 'js/features/photo.js',
+  'js/features/animals-extra.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png',
 ];
 

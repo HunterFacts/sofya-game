@@ -8,6 +8,8 @@ import { load, store, KEY, replaceSave, storageOK, exportCode, parseCode, setCon
 import { Garage, ChestOpener, renderLevels, showToast, boosterIcon, chestIcon } from './ui.js';
 import { drawAnimal } from './art.js';
 import { wrapAngle } from './rng.js';
+import { on, emit } from './hooks.js';
+import { initFeatures } from './features/index.js';
 
 const $ = (id) => document.getElementById(id);
 const save = load();
@@ -26,6 +28,7 @@ let lastRunSave = 0;
 
 // ---------- старт мира в меню ----------
 function placeWorld() {
+  world.setVehicle(save.look.vehicle);
   const run = save.run;
   if (run && run.L === save.level) world.start(run.L, run.x, run.taken);
   else world.start(save.level);
@@ -95,7 +98,8 @@ function onTap(id, fn) {
 }
 // кнопки, которым нужен «настоящий» жест (полный экран, поворот, первый звук на iPhone)
 function onClick(id, fn) {
-  $(id).addEventListener('click', (e) => { e.preventDefault(); sound.unlock(); fn(e); });
+  const b = typeof id === 'string' ? $(id) : id;
+  b.addEventListener('click', (e) => { e.preventDefault(); sound.unlock(); fn(e); });
 }
 // звук на iPhone включается только после отпускания пальца
 for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => sound.unlock(), { passive: true });
@@ -180,6 +184,7 @@ function setState(s) {
   if (s !== 'play') clearInput();
   keepAwake(s === 'play');
   refresh();
+  emit('app:state', s, api);
 }
 
 // просим браузер не стирать сохранения и офлайн-файлы, когда на телефоне мало места
@@ -232,19 +237,36 @@ function saveRun() {
 const garage = new Garage({ save, sound, store: persist, onChange: refresh });
 const chests = new ChestOpener({ save, sound, store: persist, onChange: refresh, onClose: () => closeOverlay() });
 
-function openOverlay(name) {
+// Экраны новых возможностей: name → { el, open(api, arg), close(api) }
+const screens = new Map();
+
+function openOverlay(name, arg) {
+  if (overlay) closeOverlay(false);
   overlay = name;
   clearInput();
   if (state === 'play') setState('pause');
-  if (name === 'garage') { save.fresh = false; show('garage', true); garage.open(); }
+  if (name === 'garage') { save.fresh = false; show('garage', true); garage.open(arg); }
   if (name === 'levels') { show('levels', true); renderLevels(save, startLevel); }
   if (name === 'chest') { if (!chests.open()) overlay = null; }
+  const sc = screens.get(name);
+  if (sc) { sc.el.classList.remove('hidden'); try { sc.open && sc.open(api, arg); } catch (e) { console.error(e); } }
   refresh();
 }
 function closeOverlay(click = true) {
   if (click) sound.click();
-  if (overlay === 'garage') { garage.close(); show('garage', false); persist(); }
+  if (overlay === 'garage') {
+    garage.close(); show('garage', false); persist();
+    // машину поменяли в гараже — пересаживаемся прямо на месте
+    if (world.car.vehicle.id !== save.look.vehicle) {
+      const x = world.car.x;
+      world.setVehicle(save.look.vehicle);
+      world.car.place(x);
+      renderer.follow(world, 0, true);
+    }
+  }
   if (overlay === 'levels') show('levels', false);
+  const sc = screens.get(overlay);
+  if (sc) { sc.el.classList.add('hidden'); try { sc.close && sc.close(api); } catch (e) { console.error(e); } }
   overlay = null;
   refresh();
   if (state === 'menu' && reloadWhenIdle) reloadNow();
@@ -327,6 +349,7 @@ function refresh() {
 }
 
 let hudCache = {};
+const hudEls = { fill: $('hudFill'), dot: $('hudDot'), level: $('hudLevel') };
 function updateHud() {
   const set = (k, v, fn) => { if (hudCache[k] !== v) { hudCache[k] = v; fn(v); } };
   set('coins', save.coins, (v) => ($('hudCoins').textContent = v));
@@ -342,6 +365,7 @@ function updateHud() {
     const pr = world[k] > 0 ? Math.round((world[k] / total) * 100) / 100 : 0;
     if (b.lastP !== pr) { b.lastP = pr; b.ring.style.setProperty('--p', pr); b.el.classList.toggle('active', pr > 0); }
   }
+  emit('hud:update', world, hudEls);
 }
 
 // ---------- события мира ----------
@@ -387,6 +411,7 @@ function handleEvents() {
         sound.level();
         showToast(L, e.stars, e.chest, bonus, sound);
         refresh();
+        emit('app:levelDone', e, api);
         break;
       }
     }
@@ -411,6 +436,7 @@ function frame(now) {
   } else if (state === 'menu') {
     renderer.follow(world, dt);
   }
+  emit('app:frame', dt, api);
   sound.engine(state === 'play' && !overlay && !world.crashed, input.gas ? 1 : 0, world.car.speed);
   if (overlay !== 'garage' && overlay !== 'levels') renderer.draw(world, save.look, t);
   if (state === 'crash' && !overlay) drawCrashFace();
@@ -546,8 +572,66 @@ if (hasSW && window.isSecureContext) {
   });
 }
 
+// ---------- API для новых возможностей (js/features/*) ----------
+function makeButton(cls, opt) {
+  const b = document.createElement('button');
+  b.className = cls;
+  if (opt.id) b.id = opt.id;
+  if (opt.label) b.setAttribute('aria-label', opt.label);
+  b.innerHTML = opt.html || '';
+  if (opt.badge !== undefined) b.insertAdjacentHTML('beforeend', '<b class="badge"></b>');
+  b.dataset.order = opt.order || 0;
+  (opt.click ? onClick : onTap)(b, () => { if (opt.sound !== false) sound.click(); opt.onTap(api); });
+  return b;
+}
+function insertOrdered(box, el) {
+  const after = [...box.children].find((c) => +(c.dataset.order || 0) > +el.dataset.order);
+  box.insertBefore(el, after || null);
+  return el;
+}
+const api = {
+  save, sound, world, renderer, persist, refresh, on, emit,
+  get state() { return state; },
+  get overlay() { return overlay; },
+  get t() { return t; },
+  setState, play, pause, resume, home, retry,
+  $, show,
+  addCoins(n) { save.coins += n; runCoins += n; persist(); refresh(); },
+  giveChest(tier = 'wood') { save.chests.push(tier); persist(); refresh(); },
+  openScreen: (name, arg) => openOverlay(name, arg),
+  closeScreen: (click = true) => closeOverlay(click),
+  // экран: el — готовый элемент (обычно <div class="screen shop hidden">), добавляется в body
+  registerScreen(name, def) {
+    if (!def.el.parentNode) document.body.appendChild(def.el);
+    def.el.classList.add('hidden');
+    screens.set(name, def);
+  },
+  // кнопки: { id, html, label, order, onTap(api), click?: true (для полного экрана/звука), badge?: true }
+  addMenuButton: (opt) => insertOrdered(document.querySelector('#menu .menu-bottom'), makeButton('tile', opt)),
+  addPauseButton: (opt) => insertOrdered(document.querySelector('#pause .panel-row'), makeButton('tile', opt)),
+  addHudButton: (opt) => insertOrdered($('boosters'), makeButton('boost extra', opt)),
+  // всплывающая карточка сверху (html или элемент) на ms миллисекунд
+  popup(content, ms = 2500) {
+    const card = document.createElement('div');
+    card.className = 'popup';
+    if (typeof content === 'string') card.innerHTML = content; else card.appendChild(content);
+    $('popups').appendChild(card);
+    setTimeout(() => { card.classList.add('out'); setTimeout(() => card.remove(), 400); }, ms);
+    return card;
+  },
+};
+
+// тап по картинке в меню (машина, Марисса в окне…)
+$('menu').addEventListener('pointerdown', (e) => {
+  if (e.target !== $('menu') && !e.target.classList.contains('logo') && !e.target.closest('.logo')) return;
+  emit('menu:tap', e.clientX, e.clientY, api);
+});
+
+initFeatures(api);
+emit('app:init', api);
+
 // для проверки в браузере
-window.__game = { world, save, renderer, setState, play, input, get state() { return state; }, openOverlay, closeOverlay };
+window.__game = { world, save, renderer, setState, play, input, get state() { return state; }, openOverlay, closeOverlay, api };
 
 syncScreenButtons();
 setState('menu');

@@ -1,30 +1,47 @@
 // Физика машины: кузов + два колеса на пружинной подвеске. Ось Y вниз.
-import { PHYS as P, HULL } from './config.js';
+// Размеры, масса и контур берутся из описания машины (vehicles.js).
+import { PHYS as P } from './config.js';
 import { groundY, normalAt, slopeAt, circleContact } from './terrain.js';
 import { clamp, wrapAngle } from './rng.js';
-
-const R = P.wheelR, M = P.bodyMass, I = P.bodyInertia, MW = P.wheelMass, IW = 0.5 * MW * R * R;
+import { vehicleById } from './vehicles.js';
 
 export class Car {
-  constructor() {
-    this.wheels = P.anchors.map((a) => ({
-      ax: a.x, ay: a.y, x: 0, y: 0, vx: 0, vy: 0, rot: 0, w: 0,
-      contact: false, nx: 0, ny: -1, susp: P.rest, fx: 0, fy: 0, tq: 0, slip: 0,
-    }));
+  constructor(vehicle = vehicleById('pickup')) {
+    this.setVehicle(vehicle);
     this.place(3);
+  }
+
+  setVehicle(vehicle) {
+    this.vehicle = vehicle;
+    const ph = vehicle.phys;
+    this.R = ph.wheelR;
+    this.M = ph.bodyMass;
+    this.I = ph.bodyInertia;
+    this.MW = P.wheelMass * (ph.wheelR / 0.5);
+    this.IW = 0.5 * this.MW * this.R * this.R;
+    this.rest = ph.rest;
+    this.bump = ph.bump;
+    this.maxExt = ph.maxExt;
+    this.kScale = ph.bodyMass / 7;   // пружины под вес машины
+    this.hull = vehicle.hull;
+    this.wheels = ph.anchors.map((a) => ({
+      ax: a.x, ay: a.y, x: 0, y: 0, vx: 0, vy: 0, rot: 0, w: 0,
+      contact: false, nx: 0, ny: -1, susp: ph.rest, fx: 0, fy: 0, tq: 0, slip: 0,
+    }));
   }
 
   // Поставить машину на землю в точке x
   place(x) {
+    const R = this.R;
     const a = slopeAt(x, 1.2);
     this.x = x;
     this.a = a;
-    this.y = groundY(x) - (P.anchors[0].y + P.rest + R) - 0.05;
+    this.y = groundY(x) - (this.wheels[0].ay + this.rest + R) - 0.05;
     this.vx = this.vy = this.w = 0;
     this.roofHit = false;
     const c = Math.cos(a), s = Math.sin(a);
     for (const wh of this.wheels) {
-      const lx = wh.ax, ly = wh.ay + P.rest;
+      const lx = wh.ax, ly = wh.ay + this.rest;
       wh.x = this.x + c * lx - s * ly;
       wh.y = this.y + s * lx + c * ly;
       const gy = groundY(wh.x) - R;
@@ -34,8 +51,8 @@ export class Car {
     }
     // поднять колёса вместе с кузовом, если кузов сдвинулся
     for (const wh of this.wheels) {
-      wh.x = this.x + c * wh.ax - s * (wh.ay + P.rest);
-      wh.y = this.y + s * wh.ax + c * (wh.ay + P.rest);
+      wh.x = this.x + c * wh.ax - s * (wh.ay + this.rest);
+      wh.y = this.y + s * wh.ax + c * (wh.ay + this.rest);
     }
   }
 
@@ -43,6 +60,7 @@ export class Car {
   get grounded() { return this.wheels[0].contact || this.wheels[1].contact; }
 
   step(dt, ctl, U) {
+    const { R, M, I, MW, IW, rest, bump, maxExt, kScale } = this;
     const c = Math.cos(this.a), s = Math.sin(this.a);
     const downX = -s, downY = c, fwdX = c, fwdY = s;
     let fx = 0, fy = M * U.g, tq = 0;
@@ -56,12 +74,12 @@ export class Car {
       const dvx = wh.vx - avx, dvy = wh.vy - avy;
       const ext = dx * downX + dy * downY, side = dx * fwdX + dy * fwdY;
       const vExt = dvx * downX + dvy * downY, vSide = dvx * fwdX + dvy * fwdY;
-      let fa = -U.kSusp * (ext - P.rest) - P.cSusp * vExt;
-      if (ext < P.bump) {
-        fa += P.kStop * (P.bump - ext);
+      let fa = (-U.kSusp * (ext - rest) - P.cSusp * vExt) * kScale;
+      if (ext < bump) {
+        fa += P.kStop * (bump - ext);
         if (vExt < 0) fa -= P.cStop * vExt;
-      } else if (ext > P.maxExt) {
-        fa -= P.kStop * (ext - P.maxExt);
+      } else if (ext > maxExt) {
+        fa -= P.kStop * (ext - maxExt);
         if (vExt > 0) fa -= P.cStop * vExt;
       }
       const fs = -P.kSide * side - P.cSide * vSide;
@@ -135,7 +153,7 @@ export class Car {
     }
 
     // --- кузов: касание земли ---
-    for (const p of HULL) {
+    for (const p of this.hull) {
       const rx = c * p.x - s * p.y, ry = s * p.x + c * p.y;
       const px = this.x + rx, py = this.y + ry;
       const gy = groundY(px);
@@ -184,6 +202,7 @@ export class Car {
 
   // Поставить машину на колёса (щит или застряла на боку)
   rescue(lift = 1.2) {
+    const { R } = this;
     const vx = Math.max(0, this.vx);
     this.place(this.x);
     this.y -= lift;

@@ -1,142 +1,20 @@
-// Рисование: машина, Софья, зверята, шапочки, украшения, монетки, сундуки.
+// Рисование: машина, зверята, шапочки, украшения, монетки, сундуки.
 // Все размеры в метрах (или в «единицах головы» для лиц), ось Y вниз.
 import { PAINTS } from './config.js';
+import { TAU, circle, ellipse, rrect, fillStroke, heartPath, starPath, paintFill, drawPattern, drawEyes, drawWheel } from './draw-utils.js';
+import { vehicleById } from './vehicles.js';
+import { drawSofya } from './sofya.js';
+import { emit } from './hooks.js';
 
-const TAU = Math.PI * 2;
-
-function circle(ctx, x, y, r) { ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); }
-function ellipse(ctx, x, y, rx, ry, rot = 0) { ctx.beginPath(); ctx.ellipse(x, y, rx, ry, rot, 0, TAU); }
-function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
-function fillStroke(ctx, fill, stroke, lw) {
-  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
-}
-function heartPath(ctx, x, y, s) {
-  ctx.beginPath();
-  ctx.moveTo(x, y + s * 0.35);
-  ctx.bezierCurveTo(x - s * 1.1, y - s * 0.35, x - s * 0.45, y - s * 1.05, x, y - s * 0.45);
-  ctx.bezierCurveTo(x + s * 0.45, y - s * 1.05, x + s * 1.1, y - s * 0.35, x, y + s * 0.35);
-  ctx.closePath();
-}
-function starPath(ctx, x, y, r, r2 = r * 0.45, n = 5, rot = -Math.PI / 2) {
-  ctx.beginPath();
-  for (let i = 0; i < n * 2; i++) {
-    const a = rot + (i * Math.PI) / n, rr = i % 2 ? r2 : r;
-    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-  }
-  ctx.closePath();
-}
+export { drawWheel } from './draw-utils.js';
+export { drawSofya } from './sofya.js';
 
 // ================== МАШИНА ==================
-const ARCH = 0.457, ARCH2 = Math.PI - 0.457;
-function lowerBodyPath(ctx) {
-  ctx.beginPath();
-  ctx.moveTo(-1.92, -0.47);
-  ctx.lineTo(-1.0, -0.47);
-  ctx.lineTo(-1.0, -0.36);
-  ctx.lineTo(1.05, -0.36);
-  ctx.lineTo(1.78, -0.31);
-  ctx.quadraticCurveTo(1.98, -0.29, 1.98, -0.08);
-  ctx.lineTo(1.98, 0.2);
-  ctx.quadraticCurveTo(1.98, 0.3, 1.88, 0.3);
-  ctx.lineTo(1.81, 0.3);
-  ctx.arc(1.2, 0.6, 0.68, -ARCH, -ARCH2, true);
-  ctx.lineTo(-0.59, 0.3);
-  ctx.arc(-1.2, 0.6, 0.68, -ARCH, -ARCH2, true);
-  ctx.lineTo(-1.88, 0.3);
-  ctx.quadraticCurveTo(-1.98, 0.3, -1.98, 0.2);
-  ctx.lineTo(-1.98, -0.42);
-  ctx.quadraticCurveTo(-1.98, -0.47, -1.92, -0.47);
-  ctx.closePath();
-}
-function cabPath(ctx) {
-  ctx.beginPath();
-  ctx.moveTo(-1.02, -0.3);
-  ctx.lineTo(-1.02, -1.02);
-  ctx.quadraticCurveTo(-1.02, -1.17, -0.86, -1.17);
-  ctx.lineTo(0.5, -1.17);
-  ctx.quadraticCurveTo(0.63, -1.17, 0.7, -1.08);
-  ctx.lineTo(1.12, -0.36);
-  ctx.lineTo(1.05, -0.3);
-  ctx.closePath();
-}
-function rearWindowPath(ctx) { rrect(ctx, -0.9, -1.07, 0.8, 0.64, 0.1); }
-function frontWindowPath(ctx) {
-  ctx.beginPath();
-  ctx.moveTo(0.03, -0.97);
-  ctx.quadraticCurveTo(0.03, -1.07, 0.13, -1.07);
-  ctx.lineTo(0.5, -1.07);
-  ctx.quadraticCurveTo(0.56, -1.07, 0.6, -1.01);
-  ctx.lineTo(0.94, -0.48);
-  ctx.quadraticCurveTo(0.96, -0.43, 0.9, -0.43);
-  ctx.lineTo(0.08, -0.43);
-  ctx.quadraticCurveTo(0.03, -0.43, 0.03, -0.48);
-  ctx.closePath();
-}
-
-function paintFill(ctx, paint, top, bottom) {
-  const g = ctx.createLinearGradient(0, top, 0, bottom);
-  g.addColorStop(0, paint.light);
-  g.addColorStop(0.35, paint.body);
-  g.addColorStop(1, paint.dark);
-  return g;
-}
-
-function drawPattern(ctx, paint, t) {
-  if (!paint.pattern) return;
-  ctx.save();
-  if (paint.pattern === 'hearts') {
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    for (const [x, y, s] of [[-1.6, -0.15, 0.13], [-0.7, 0.05, 0.1], [0.2, -0.15, 0.12], [1.5, -0.1, 0.11], [-0.4, -0.85, 0.09], [-1.3, -0.3, 0.07], [0.8, 0.05, 0.08]]) {
-      heartPath(ctx, x, y, s); ctx.fill();
-    }
-  } else if (paint.pattern === 'stars') {
-    ctx.fillStyle = '#fff3a8';
-    for (const [x, y, s] of [[-1.6, -0.15, 0.12], [-0.7, 0.02, 0.1], [0.25, -0.12, 0.13], [1.5, -0.1, 0.1], [-0.45, -0.85, 0.08], [1.0, 0.08, 0.07]]) {
-      starPath(ctx, x, y, s); ctx.fill();
-    }
-  } else if (paint.pattern === 'rainbow') {
-    const cols = ['#ff5a5a', '#ff9f43', '#ffd93b', '#5ee07a', '#4fb3ff', '#a97bff'];
-    for (let i = 0; i < cols.length; i++) { ctx.fillStyle = cols[i]; ctx.fillRect(-2.1, -0.36 + i * 0.11, 4.2, 0.115); }
-    for (let i = 0; i < cols.length; i++) { ctx.fillStyle = cols[i]; ctx.fillRect(-2.1, -1.2 + i * 0.15, 4.2, 0.155); }
-  } else if (paint.pattern === 'shine') {
-    const off = ((t * 0.6) % 3) * 2 - 3;
-    ctx.fillStyle = 'rgba(255,255,255,0.45)';
-    ctx.beginPath();
-    ctx.moveTo(off, -1.3); ctx.lineTo(off + 0.35, -1.3); ctx.lineTo(off - 0.5, 0.4); ctx.lineTo(off - 0.85, 0.4);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
-export function drawWheel(ctx, x, y, rot, rim) {
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(rot);
-  circle(ctx, 0, 0, 0.5);
-  fillStroke(ctx, '#2f2b36', '#1c1a21', 0.04);
-  ctx.fillStyle = '#423c4c';
-  for (let i = 0; i < 14; i++) {
-    ctx.save(); ctx.rotate((i * TAU) / 14); ctx.fillRect(-0.05, -0.53, 0.1, 0.09); ctx.restore();
-  }
-  circle(ctx, 0, 0, 0.29);
-  fillStroke(ctx, '#f4f1f8', '#c9c2d6', 0.03);
-  ctx.strokeStyle = rim;
-  ctx.lineWidth = 0.07;
-  ctx.lineCap = 'round';
-  for (let i = 0; i < 5; i++) {
-    const a = (i * TAU) / 5;
-    ctx.beginPath(); ctx.moveTo(Math.cos(a) * 0.08, Math.sin(a) * 0.08); ctx.lineTo(Math.cos(a) * 0.24, Math.sin(a) * 0.24); ctx.stroke();
-  }
-  circle(ctx, 0, 0, 0.09);
-  fillStroke(ctx, rim, null);
-  ctx.restore();
-}
-
-/**
- * Машина целиком. state: {x, y, a, wheels:[{x,y,rot}]}, look: {paint, animal, hat}, face: {mood, t}
- */
+// Рисует любую машину из vehicles.js.
+// state: {x, y, a, wheels:[{x,y,rot}], vehicle?}, look: {paint, animal, hat, vehicle, sofya},
+// face: {mood, t, sofyaMood?, pose?}
 export function drawCar(ctx, state, look, face) {
+  const vehicle = state.vehicle || vehicleById(look.vehicle);
   const paint = PAINTS.find((p) => p.id === look.paint) || PAINTS[0];
   const c = Math.cos(state.a), s = Math.sin(state.a);
   ctx.save();
@@ -145,273 +23,73 @@ export function drawCar(ctx, state, look, face) {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
-  // колёса в системе машины
-  const wl = state.wheels.map((w) => {
-    const dx = w.x - state.x, dy = w.y - state.y;
-    return { x: c * dx + s * dy, y: -s * dx + c * dy, rot: w.rot - state.a };
-  });
+  const info = { state, look, face, vehicle, part: null };
+  const K = {
+    vehicle, paint, look, face, state, t: face.t,
+    // колёса в системе машины
+    wheels: state.wheels.map((w) => {
+      const dx = w.x - state.x, dy = w.y - state.y;
+      return { x: c * dx + s * dy, y: -s * dx + c * dy };
+    }),
+    paintFill: (top, bottom) => paintFill(ctx, paint, top, bottom),
+    // узор раскраски + наклейки внутри контура детали кузова
+    decorate(pathFn, part, box, extra) {
+      ctx.save();
+      pathFn(ctx);
+      ctx.clip();
+      drawPattern(ctx, paint, face.t, box);
+      if (extra) extra();
+      emit('car:stickers', ctx, { ...info, part });
+      ctx.restore();
+    },
+    windows() { drawWindows(ctx, vehicle, look, face, paint); },
+    cargo() { emit('car:cargo', ctx, info); },
+  };
 
-  // стойки подвески
-  ctx.strokeStyle = '#5b5566';
-  ctx.lineWidth = 0.13;
-  for (let i = 0; i < 2; i++) {
-    const ax = i ? 1.2 : -1.2;
-    ctx.beginPath(); ctx.moveTo(ax, 0.2); ctx.lineTo(wl[i].x, wl[i].y); ctx.stroke();
-  }
-  ctx.strokeStyle = '#8e879b';
-  ctx.lineWidth = 0.06;
-  for (let i = 0; i < 2; i++) {
-    const ax = i ? 1.2 : -1.2;
-    ctx.beginPath(); ctx.moveTo(ax, 0.2); ctx.lineTo(wl[i].x, wl[i].y); ctx.stroke();
-  }
+  emit('car:back', ctx, info);
+  vehicle.draw(ctx, K);
+  emit('car:front', ctx, info);
+  ctx.restore();
+  for (const w of state.wheels) drawWheel(ctx, w.x, w.y, w.rot, paint.body, vehicle.phys.wheelR);
+}
 
-  // кабина
-  cabPath(ctx);
-  fillStroke(ctx, paintFill(ctx, paint, -1.2, -0.3), paint.dark, 0.05);
-  // окна: фон
-  const glass = ctx.createLinearGradient(0, -1.07, 0, -0.43);
+// Окна: стекло, кто сидит внутри (Софья и зверёк), блик и рамка
+function drawWindows(ctx, vehicle, look, face, paint) {
+  const [gy0, gy1] = vehicle.glass;
+  const glass = ctx.createLinearGradient(0, gy0, 0, gy1);
   glass.addColorStop(0, '#bfe7ff');
   glass.addColorStop(1, '#8cc9ef');
-  for (const wp of [rearWindowPath, frontWindowPath]) { wp(ctx); ctx.fillStyle = glass; ctx.fill(); }
-  // сиденья
-  ctx.fillStyle = 'rgba(80,70,110,0.25)';
-  rrect(ctx, -0.82, -0.86, 0.12, 0.45, 0.05); ctx.fill();
-  rrect(ctx, 0.08, -0.86, 0.12, 0.45, 0.05); ctx.fill();
-
-  // зверёк во втором окне
-  ctx.save();
-  rearWindowPath(ctx);
-  ctx.clip();
-  ctx.translate(-0.5, -0.66);
-  ctx.scale(0.22, 0.22);
-  drawAnimal(ctx, look.animal, face.mood, face.t, look.hat);
-  ctx.restore();
-
-  // Софья в первом окне
-  ctx.save();
-  frontWindowPath(ctx);
-  ctx.clip();
-  ctx.translate(0.31, -0.67);
-  ctx.scale(0.2, 0.2);
-  drawSofya(ctx, face.mood, face.t);
-  ctx.restore();
-
-  // блики стёкол и рамки
-  for (const wp of [rearWindowPath, frontWindowPath]) {
-    ctx.save();
-    wp(ctx);
-    ctx.clip();
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    ctx.beginPath();
-    ctx.moveTo(-1, -1.1); ctx.lineTo(-0.75, -1.1); ctx.lineTo(-1.2, -0.4); ctx.lineTo(-1.45, -0.4);
-    ctx.moveTo(0.05, -1.1); ctx.lineTo(0.22, -1.1); ctx.lineTo(-0.2, -0.4); ctx.lineTo(-0.37, -0.4);
-    ctx.moveTo(0.85, -1.1); ctx.lineTo(1.0, -1.1); ctx.lineTo(0.55, -0.4); ctx.lineTo(0.4, -0.4);
+  for (const w of vehicle.windows) {
+    w.path(ctx);
+    ctx.fillStyle = glass;
     ctx.fill();
+    ctx.save();
+    w.path(ctx);
+    ctx.clip();
+    ctx.save();
+    ctx.translate(w.x, w.y);
+    ctx.scale(w.scale, w.scale);
+    if (w.role === 'pet') drawAnimal(ctx, look.animal, face.mood, face.t, look.hat);
+    else drawSofya(ctx, face.sofyaMood || face.mood, face.t, look.sofya, face.pose);
     ctx.restore();
-    wp(ctx);
+    // блик
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    const h = gy1 - gy0;
+    for (const off of [-0.32, 0.36]) {
+      const bx = w.x + off;
+      ctx.beginPath();
+      ctx.moveTo(bx, gy0 - 0.03); ctx.lineTo(bx + 0.16, gy0 - 0.03); ctx.lineTo(bx + 0.16 - h * 0.7, gy1 + 0.03); ctx.lineTo(bx - h * 0.7, gy1 + 0.03);
+      ctx.fill();
+    }
+    ctx.restore();
+    w.path(ctx);
     ctx.strokeStyle = paint.dark;
     ctx.lineWidth = 0.05;
     ctx.stroke();
   }
-
-  // антенна с сердечком
-  const sway = Math.sin(face.t * 5) * 0.12 - state.a * 0.3;
-  ctx.strokeStyle = '#6d6578';
-  ctx.lineWidth = 0.035;
-  ctx.beginPath(); ctx.moveTo(-0.85, -1.17); ctx.quadraticCurveTo(-0.9 + sway * 0.5, -1.45, -0.9 + sway, -1.7); ctx.stroke();
-  heartPath(ctx, -0.9 + sway, -1.72, 0.13);
-  fillStroke(ctx, '#ff4f9a', '#c8306f', 0.03);
-
-  // нижняя часть кузова
-  lowerBodyPath(ctx);
-  ctx.save();
-  ctx.fillStyle = paintFill(ctx, paint, -0.5, 0.35);
-  ctx.fill();
-  ctx.clip();
-  drawPattern(ctx, paint, face.t);
-  // кузов-кузовок: тень внутри
-  ctx.fillStyle = 'rgba(0,0,0,0.12)';
-  ctx.fillRect(-1.98, -0.47, 0.96, 0.1);
-  // полоска
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  ctx.fillRect(-2, -0.05, 4, 0.07);
-  ctx.restore();
-  lowerBodyPath(ctx);
-  ctx.strokeStyle = paint.dark;
-  ctx.lineWidth = 0.05;
-  ctx.stroke();
-
-  // двери и ручки
-  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
-  ctx.lineWidth = 0.03;
-  ctx.beginPath();
-  ctx.moveTo(-0.04, -1.07); ctx.lineTo(-0.04, 0.2);
-  ctx.moveTo(-1.0, -0.36); ctx.lineTo(-1.0, 0.2);
-  ctx.moveTo(1.02, -0.36); ctx.lineTo(1.0, 0.2);
-  ctx.stroke();
-  ctx.fillStyle = 'rgba(0,0,0,0.25)';
-  rrect(ctx, -0.42, -0.25, 0.2, 0.05, 0.025); ctx.fill();
-  rrect(ctx, 0.55, -0.25, 0.2, 0.05, 0.025); ctx.fill();
-
-  // фара и задний фонарь
-  ellipse(ctx, 1.9, -0.13, 0.09, 0.11);
-  fillStroke(ctx, '#fff7b0', '#e3b52c', 0.025);
-  rrect(ctx, -1.99, -0.38, 0.07, 0.2, 0.03);
-  fillStroke(ctx, '#ff5470', null);
-  // бамперы
-  ctx.fillStyle = '#5b5566';
-  rrect(ctx, 1.62, 0.13, 0.42, 0.17, 0.07); ctx.fill();
-  rrect(ctx, -2.04, 0.13, 0.42, 0.17, 0.07); ctx.fill();
-  // выхлопная труба
-  ctx.fillStyle = '#8e879b';
-  rrect(ctx, -2.1, 0.02, 0.16, 0.08, 0.03); ctx.fill();
-
-  // колёса поверх
-  ctx.restore();
-  for (const w of state.wheels) drawWheel(ctx, w.x, w.y, w.rot, paint.body);
 }
 
-// ================== СОФЬЯ ==================
-const HAIR = '#937452', HAIR_D = '#6f5538', HAIR_L = '#b8976b', SKIN = '#ffdcc6', SKIN_D = '#f1bfa3';
-
-// Волнистая линия от текущей точки (x0, y0) до (x1, y1): n «кудряшек» высотой amp
-function wave(ctx, x0, y0, x1, y1, n, amp) {
-  const dx = (x1 - x0) / n, dy = (y1 - y0) / n;
-  const len = Math.hypot(dx, dy) || 1, px = -dy / len, py = dx / len;
-  for (let i = 0; i < n; i++) {
-    const k = i % 2 ? -amp : amp;
-    ctx.quadraticCurveTo(x0 + dx * (i + 0.5) + px * k, y0 + dy * (i + 0.5) + py * k, x0 + dx * (i + 1), y0 + dy * (i + 1));
-  }
-}
-
-// Прядь перед плечом: от виска вниз за край окна
-function hairLock(ctx, d, sway) {
-  const ox = 1.02 * d, ix = 0.74 * d;
-  ctx.beginPath();
-  ctx.moveTo(ox, -0.15);
-  wave(ctx, ox, -0.15, (1.42 + sway) * d, 3.0, 7, 0.13 * d);
-  ctx.lineTo((0.98 + sway) * d, 3.0);
-  wave(ctx, (0.98 + sway) * d, 3.0, ix, 0.35, 6, 0.11 * d);
-  ctx.quadraticCurveTo(0.78 * d, 0.05, ox, -0.15);
-  ctx.closePath();
-  fillStroke(ctx, HAIR, HAIR_D, 0.06);
-  // завитки-блики
-  ctx.strokeStyle = HAIR_L;
-  ctx.lineWidth = 0.07;
-  for (const [y, r] of [[0.55, 0.13], [1.25, 0.15], [1.95, 0.14], [2.6, 0.13]]) {
-    const x = (1.0 + sway * (y / 3) + y * 0.07) * d;
-    ctx.beginPath();
-    ctx.arc(x, y, r, d > 0 ? Math.PI * 0.9 : -Math.PI * 0.1, d > 0 ? Math.PI * 2.3 : Math.PI * 1.3);
-    ctx.stroke();
-  }
-}
-
-// Софья: тёмно-русые, слегка кудрявые длинные волосы (до колен — уходят за край окна)
-export function drawSofya(ctx, mood, t) {
-  ctx.lineJoin = 'round';
-  ctx.lineCap = 'round';
-  const sway = Math.sin(t * 3) * 0.06 + (mood === 'turbo' ? -0.12 : 0);
-  // копна волос сзади
-  ctx.beginPath();
-  ctx.moveTo(-0.2, -1.14);
-  ctx.quadraticCurveTo(-1.25, -1.12, -1.22, -0.1);
-  wave(ctx, -1.22, -0.1, -1.75 + sway, 3.2, 8, 0.12);
-  ctx.lineTo(1.75 + sway, 3.2);
-  wave(ctx, 1.75 + sway, 3.2, 1.22, -0.1, 8, 0.12);
-  ctx.quadraticCurveTo(1.25, -1.12, 0.2, -1.14);
-  ctx.closePath();
-  fillStroke(ctx, HAIR, HAIR_D, 0.08);
-  // плечи и кофточка
-  ellipse(ctx, 0, 1.6, 1.12, 0.62);
-  fillStroke(ctx, '#ff8cc6', '#e0609f', 0.08);
-  ellipse(ctx, 0, 1.05, 0.25, 0.2);
-  ctx.fillStyle = SKIN_D; ctx.fill();
-  // лицо
-  ellipse(ctx, 0, 0.1, 0.9, 0.92);
-  fillStroke(ctx, SKIN, SKIN_D, 0.06);
-  // длинные пряди спереди, на плечах
-  hairLock(ctx, -1, sway);
-  hairLock(ctx, 1, sway);
-  // макушка и кудрявая чёлка
-  ctx.beginPath();
-  ctx.moveTo(-1.02, 0.02);
-  ctx.quadraticCurveTo(-1.02, -1.1, 0, -1.12);
-  ctx.quadraticCurveTo(1.02, -1.1, 1.04, 0.02);
-  ctx.quadraticCurveTo(0.95, -0.2, 0.82, -0.22);
-  wave(ctx, 0.82, -0.22, -0.82, -0.22, 5, 0.17);
-  ctx.quadraticCurveTo(-0.95, -0.2, -1.02, 0.02);
-  fillStroke(ctx, HAIR, HAIR_D, 0.07);
-  ctx.strokeStyle = HAIR_L;
-  ctx.lineWidth = 0.08;
-  ctx.beginPath(); ctx.moveTo(-0.5, -0.86); ctx.quadraticCurveTo(-0.1, -1.0, 0.3, -0.92); ctx.stroke();
-  ctx.beginPath(); ctx.arc(-0.62, -0.5, 0.12, Math.PI * 0.8, Math.PI * 2.1); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0.5, -0.62, 0.11, Math.PI * 0.9, Math.PI * 2.2); ctx.stroke();
-  // розовая заколка-сердечко
-  heartPath(ctx, 0.72, -0.62, 0.2);
-  fillStroke(ctx, '#ff5fa8', '#d63d86', 0.05);
-  // щёчки
-  ctx.fillStyle = 'rgba(255,120,150,0.4)';
-  ellipse(ctx, -0.52, 0.38, 0.18, 0.11); ctx.fill();
-  ellipse(ctx, 0.52, 0.38, 0.18, 0.11); ctx.fill();
-  drawEyes(ctx, mood, t, -0.36, 0.36, 0.08, '#4a3426', false, 0.7);
-  drawHumanMouth(ctx, mood, 0, 0.55);
-}
-
-function drawHumanMouth(ctx, mood, x, y) {
-  ctx.strokeStyle = '#a64a4a';
-  ctx.lineWidth = 0.08;
-  if (mood === 'scared') {
-    ellipse(ctx, x, y + 0.05, 0.13, 0.17); fillStroke(ctx, '#a63b4a', null);
-  } else if (mood === 'happy' || mood === 'turbo') {
-    ctx.beginPath(); ctx.moveTo(x - 0.25, y - 0.04); ctx.quadraticCurveTo(x, y + 0.4, x + 0.25, y - 0.04); ctx.closePath();
-    fillStroke(ctx, '#c4475c', '#a64a4a', 0.06);
-    ctx.fillStyle = '#fff'; ctx.fillRect(x - 0.17, y - 0.03, 0.34, 0.07);
-  } else if (mood === 'dizzy') {
-    ctx.beginPath(); ctx.moveTo(x - 0.22, y + 0.08);
-    ctx.quadraticCurveTo(x - 0.11, y - 0.05, x, y + 0.08); ctx.quadraticCurveTo(x + 0.11, y + 0.2, x + 0.22, y + 0.08); ctx.stroke();
-  } else {
-    ctx.beginPath(); ctx.arc(x, y - 0.1, 0.2, 0.35, Math.PI - 0.35); ctx.stroke();
-  }
-}
-
-// Глаза для всех: настроение меняет форму
-function drawEyes(ctx, mood, t, lx, rx, y, color, iris, size = 1) {
-  const blink = (t % 3.7) < 0.12 && mood === 'normal';
-  ctx.lineCap = 'round';
-  for (const x of [lx, rx]) {
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 0.1 * size;
-    if (mood === 'happy') {
-      ctx.beginPath(); ctx.arc(x, y + 0.08 * size, 0.15 * size, Math.PI + 0.3, -0.3); ctx.stroke();
-    } else if (mood === 'turbo') {
-      const d = x < (lx + rx) / 2 ? 1 : -1;
-      ctx.beginPath();
-      ctx.moveTo(x - 0.15 * size * d, y - 0.12 * size); ctx.lineTo(x + 0.12 * size * d, y); ctx.lineTo(x - 0.15 * size * d, y + 0.12 * size);
-      ctx.stroke();
-    } else if (mood === 'dizzy') {
-      ctx.lineWidth = 0.07 * size;
-      ctx.beginPath();
-      for (let i = 0; i < 24; i++) {
-        const a = i * 0.55 + t * 8, r = (i / 24) * 0.18 * size;
-        ctx.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
-      }
-      ctx.stroke();
-    } else if (mood === 'scared') {
-      circle(ctx, x, y, 0.2 * size); fillStroke(ctx, '#fff', color, 0.05 * size);
-      circle(ctx, x, y, 0.07 * size); fillStroke(ctx, color, null);
-    } else if (blink) {
-      ctx.beginPath(); ctx.moveTo(x - 0.14 * size, y); ctx.lineTo(x + 0.14 * size, y); ctx.stroke();
-    } else {
-      ellipse(ctx, x, y, 0.17 * size, 0.22 * size);
-      fillStroke(ctx, iris || color, null);
-      if (iris) { ellipse(ctx, x, y + 0.02 * size, 0.08 * size, 0.15 * size); fillStroke(ctx, '#1d1d24', null); }
-      circle(ctx, x + 0.06 * size, y - 0.08 * size, 0.06 * size); fillStroke(ctx, '#fff', null);
-      circle(ctx, x - 0.05 * size, y + 0.07 * size, 0.03 * size); fillStroke(ctx, '#fff', null);
-    }
-  }
-}
-
-function animalMouth(ctx, mood, y, color, tongue = false) {
+export function animalMouth(ctx, mood, y, color, tongue = false) {
   ctx.strokeStyle = color;
   ctx.lineWidth = 0.07;
   ctx.lineCap = 'round';
@@ -431,7 +109,7 @@ function animalMouth(ctx, mood, y, color, tongue = false) {
   }
 }
 
-function whiskers(ctx, y, color) {
+export function whiskers(ctx, y, color) {
   ctx.strokeStyle = color;
   ctx.lineWidth = 0.035;
   for (const d of [-1, 1]) {
@@ -442,26 +120,53 @@ function whiskers(ctx, y, color) {
 }
 
 // ================== ЗВЕРЯТА ==================
+// Детали мордочек — общие для всех зверят (в том числе из других файлов, см. registerAnimal)
+export function animalKit(ctx) {
+  return {
+    ear(x, rot, fill, inner, stroke) {
+      ctx.save(); ctx.translate(x, -0.6); ctx.rotate(rot);
+      ctx.beginPath(); ctx.moveTo(-0.38, 0.2); ctx.lineTo(0, -0.62); ctx.lineTo(0.38, 0.2); ctx.closePath();
+      fillStroke(ctx, fill, stroke, 0.07);
+      if (inner) { ctx.beginPath(); ctx.moveTo(-0.2, 0.1); ctx.lineTo(0, -0.38); ctx.lineTo(0.2, 0.1); ctx.closePath(); fillStroke(ctx, inner, null); }
+      ctx.restore();
+    },
+    body(fill, stroke) { ellipse(ctx, 0, 1.55, 1.05, 0.7); fillStroke(ctx, fill, stroke, 0.07); },
+    head(fill, stroke) { ellipse(ctx, 0, 0, 1.0, 0.9); fillStroke(ctx, fill, stroke, 0.07); },
+    blush() {
+      ctx.fillStyle = 'rgba(255,120,160,0.45)';
+      ellipse(ctx, -0.6, 0.3, 0.17, 0.1); ctx.fill();
+      ellipse(ctx, 0.6, 0.3, 0.17, 0.1); ctx.fill();
+    },
+    eyes: (mood, t, lx, rx, y, color, iris, size) => drawEyes(ctx, mood, t, lx, rx, y, color, iris, size),
+    mouth: (mood, y, color, tongue) => animalMouth(ctx, mood, y, color, tongue),
+    whiskers: (y, color) => whiskers(ctx, y, color),
+    circle: (x, y, r) => circle(ctx, x, y, r),
+    ellipse: (x, y, rx, ry, rot) => ellipse(ctx, x, y, rx, ry, rot),
+    fillStroke: (fill, stroke, lw) => fillStroke(ctx, fill, stroke, lw),
+  };
+}
+
+// Новые зверята из других файлов: draw(ctx, mood, t, kit) рисует голову радиусом ~1 с центром (0,0)
+// (шапочку рисовать не нужно — её добавит drawAnimal). opt.hatTop — высота макушки для шапочки.
+const extraAnimals = new Map();
+export function registerAnimal(id, draw, opt = {}) { extraAnimals.set(id, { draw, ...opt }); }
+
 // Голова радиусом ~1, центр (0,0)
 export function drawAnimal(ctx, id, mood, t, hat) {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
   const bob = Math.sin(t * 4) * 0.03;
   ctx.translate(0, bob);
-  const ear = (x, rot, fill, inner, stroke) => {
-    ctx.save(); ctx.translate(x, -0.6); ctx.rotate(rot);
-    ctx.beginPath(); ctx.moveTo(-0.38, 0.2); ctx.lineTo(0, -0.62); ctx.lineTo(0.38, 0.2); ctx.closePath();
-    fillStroke(ctx, fill, stroke, 0.07);
-    if (inner) { ctx.beginPath(); ctx.moveTo(-0.2, 0.1); ctx.lineTo(0, -0.38); ctx.lineTo(0.2, 0.1); ctx.closePath(); fillStroke(ctx, inner, null); }
+  const kit = animalKit(ctx);
+  const { ear, body, head, blush } = kit;
+  const extra = extraAnimals.get(id);
+  if (extra) {
+    ctx.save();
+    extra.draw(ctx, mood, t, kit);
     ctx.restore();
-  };
-  const body = (fill, stroke) => { ellipse(ctx, 0, 1.55, 1.05, 0.7); fillStroke(ctx, fill, stroke, 0.07); };
-  const head = (fill, stroke) => { ellipse(ctx, 0, 0, 1.0, 0.9); fillStroke(ctx, fill, stroke, 0.07); };
-  const blush = () => {
-    ctx.fillStyle = 'rgba(255,120,160,0.45)';
-    ellipse(ctx, -0.6, 0.3, 0.17, 0.1); ctx.fill();
-    ellipse(ctx, 0.6, 0.3, 0.17, 0.1); ctx.fill();
-  };
+    drawHat(ctx, hat, t, id, extra.hatTop);
+    return;
+  }
 
   switch (id) {
     case 'dog': {
@@ -616,9 +321,9 @@ export function drawAnimal(ctx, id, mood, t, hat) {
 }
 
 // ================== ШАПОЧКИ ==================
-export function drawHat(ctx, hat, t, id) {
+export function drawHat(ctx, hat, t, id, hatTop) {
   if (!hat || hat === 'none') return;
-  const top = id === 'bunny' ? -0.82 : id === 'unicorn' ? -0.78 : -0.86;
+  const top = hatTop !== undefined ? hatTop : id === 'bunny' ? -0.82 : id === 'unicorn' ? -0.78 : -0.86;
   ctx.save();
   ctx.lineJoin = 'round';
   switch (hat) {

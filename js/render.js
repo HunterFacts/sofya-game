@@ -1,5 +1,7 @@
 // Отрисовка мира на канвасе: небо, горы, земля, украшения, монетки, машина, частицы.
-import { STEP, groundY, levelAt, levelStart, biomeOf, decoAt, DECO_CELL } from './terrain.js';
+import { STEP, groundY, levelAt, levelStart, biomeOf, decoAt, DECO_CELL, regionAt } from './terrain.js';
+import { emit } from './hooks.js';
+import { vehicleById } from './vehicles.js';
 import { drawCar, drawCoin, drawPickup, drawDeco } from './art.js';
 import { noise, hash2, clamp, smooth } from './rng.js';
 
@@ -22,6 +24,8 @@ function mix(a, b, t) {
 
 // Плавный переход фона между мирами вокруг финиша
 function blendAt(x) {
+  const reg = regionAt(x);
+  if (reg) return { a: reg.biome, b: reg.biome, t: 0 };
   const L = levelAt(x);
   const B0 = levelStart(L), B1 = levelStart(L + 1);
   if (L > 0 && x - B0 < 25) return { a: biomeOf(L - 1), b: biomeOf(L), t: smooth(clamp((x - B0 + 25) / 50, 0, 1)) };
@@ -63,13 +67,27 @@ export class Renderer {
     cam.s += (ts - cam.s) * (1 - Math.exp(-dt * 2));
   }
 
+  // Перевод координат: мир (метры) ↔ экран (CSS-пиксели)
+  worldToScreen(x, y) { const { cam, W, H } = this; return { x: (x - cam.x) * cam.s + W / 2, y: (y - cam.y) * cam.s + H / 2 }; }
+  screenToWorld(sx, sy) { const { cam, W, H } = this; return { x: (sx - W / 2) / cam.s + cam.x, y: (sy - H / 2) / cam.s + cam.y }; }
+
   draw(world, look, t) {
     const { ctx, W, H, dpr, cam } = this;
     const s = cam.s;
     const bl = blendAt(cam.x);
+    const view = {
+      x0: cam.x - W / 2 / s - 2, x1: cam.x + W / 2 / s + 2,
+      yTop: cam.y - H / 2 / s - 2, yBottom: cam.y + H / 2 / s + 2,
+      s, W, H, cam, blend: bl, dpr,
+    };
+    this.view = view;
+    const toWorld = () => ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * (W / 2 - cam.x * s), dpr * (H / 2 - cam.y * s));
+    const toScreen = () => ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     this.drawSky(bl, t);
+    emit('render:sky', ctx, view, t);
+    toScreen();
     this.drawLayer(bl, 0.2, 'far', t);
     this.drawLayer(bl, 0.45, 'near', t);
 
@@ -91,12 +109,16 @@ export class Renderer {
       if (d && d.type === 'crater') drawDeco(ctx, d.type, d.x, groundY(d.x) + 0.05, d.s, d.flip, t);
     }
     this.drawArches(x0, x1, t, false);
+    emit('render:world-back', ctx, world, view, t);
+    toWorld();
 
     // монетки и бонусы
     for (const it of world.items.values()) {
       for (const c of it.coins) if (!c.taken && c.x > x0 && c.x < x1) drawCoin(ctx, c.x, c.y, t, c.big);
       for (const p of it.pickups) if (!p.taken && p.x > x0 && p.x < x1) drawPickup(ctx, p.kind, p.x, p.y, t);
     }
+    emit('render:world-items', ctx, world, view, t);
+    toWorld();
 
     // магнит
     const car = world.car;
@@ -110,7 +132,7 @@ export class Renderer {
       ctx.setLineDash([]);
     }
 
-    drawCar(ctx, car, look, { mood: world.mood(), t });
+    drawCar(ctx, car, look, world.face(t));
 
     // щит-пузырь
     if (world.shield > 0) {
@@ -127,9 +149,12 @@ export class Renderer {
     }
 
     this.drawParticles(world.particles, t);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    emit('render:world-front', ctx, world, view, t);
+    toScreen();
     this.drawAmbient(bl, t);
     if (world.turbo > 0) this.drawSpeedLines(t);
+    emit('render:screen', ctx, world, view, t);
+    toScreen();
   }
 
   drawSky(bl, t) {
@@ -218,6 +243,13 @@ export class Renderer {
     const segs = [];
     let a = x0;
     while (a < x1) {
+      const reg = regionAt(a);
+      if (reg) {
+        const b = Math.min(x1, reg.x1);
+        segs.push({ a, b, biome: reg.biome });
+        a = b;
+        continue;
+      }
       const L = levelAt(a);
       const b = Math.min(x1, levelStart(L + 1));
       segs.push({ a, b, biome: biomeOf(L) });
@@ -287,7 +319,7 @@ export class Renderer {
     let L = Math.max(1, levelAt(x0) - 1);
     for (; levelStart(L) < x1 + 6; L++) {
       const B = levelStart(L);
-      if (B < x0 - 6) continue;
+      if (B < x0 - 6 || regionAt(B)) continue;
       const gy = groundY(B);
       if (back) {
         // столбы, флажки и надпись-номер
@@ -437,14 +469,24 @@ export class Renderer {
 
   // Машина отдельно (для гаража и меню)
   static drawPreview(ctx, w, h, look, mood, t, scale) {
-    const s = scale || Math.min(w / 5.2, h / 3.4);
+    const v = vehicleById(look.vehicle);
+    const xs = v.hull.map((p) => p.x);
+    const minX = Math.min(...xs), maxX = Math.max(...xs), len = maxX - minX;
+    const s = scale || Math.min(w / (len + 1.3), h / 3.4);
     ctx.save();
     ctx.translate(w / 2, h * 0.58);
     ctx.scale(s, s);
-    const state = { x: 0, y: -0.25, a: 0, wheels: [{ x: -1.2, y: 0.38, rot: t * 2 }, { x: 1.2, y: 0.38, rot: t * 2 }] };
+    ctx.translate(-(minX + maxX) / 2, 0);
+    const ph = v.phys;
+    const wy = (a) => a.y + ph.rest - 0.07;                // колесо чуть «просело» под весом
+    const y = 0.88 - (wy(ph.anchors[0]) + ph.wheelR);       // земля на y = 0.88
+    const state = {
+      x: 0, y, a: 0, vehicle: v,
+      wheels: ph.anchors.map((a) => ({ x: a.x, y: y + wy(a), rot: t * 2 })),
+    };
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
-    ctx.beginPath(); ctx.ellipse(0, 0.9, 2.3, 0.14, 0, 0, Math.PI * 2); ctx.fill();
-    drawCar(ctx, state, look, { mood, t });
+    ctx.beginPath(); ctx.ellipse((minX + maxX) / 2, 0.9, len * 0.6, 0.14, 0, 0, Math.PI * 2); ctx.fill();
+    drawCar(ctx, state, look, typeof mood === 'object' && mood ? { ...mood, t } : { mood, t });
     ctx.restore();
   }
 }

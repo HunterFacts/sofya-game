@@ -25,6 +25,20 @@ export function levelAt(x) {
   return lo;
 }
 export const biomeOf = (L) => BIOMES[L % BIOMES.length];
+
+// ---------- Особые участки трассы (например, бонус-уровень далеко от обычных уровней) ----------
+// region = { x0, x1, height(x) → высота (вверх +), biome, deco?: [типы украшений] }
+const regions = [];
+export function registerRegion(region) { regions.push(region); clearSampleCache(); return region; }
+export function regionAt(x) {
+  for (const r of regions) if (x >= r.x0 && x < r.x1) return r;
+  return null;
+}
+// Мир (цвета, гравитация, украшения) в точке x
+export function biomeAtX(x) {
+  const r = regionAt(x);
+  return r ? r.biome : biomeOf(levelAt(x));
+}
 export const difficulty = (L) => 1 - Math.exp(-L / 10);
 
 // ---------- Высота ----------
@@ -92,6 +106,8 @@ function plateauH(L) {
 }
 
 function smoothHeight(x) {
+  const reg = regionAt(x);
+  if (reg) return reg.height(x);
   const L = levelAt(x);
   let h = rawH(x, L);
   const B0 = levelStart(L), B1 = levelStart(L + 1);
@@ -107,6 +123,7 @@ function smoothHeight(x) {
 const CACHE = 8192;
 const cIdx = new Int32Array(CACHE).fill(-0x7fffffff);
 const cVal = new Float64Array(CACHE);
+function clearSampleCache() { cIdx.fill(-0x7fffffff); }
 function sampleY(i) {
   const k = i & (CACHE - 1);
   if (cIdx[k] !== i) { cIdx[k] = i; cVal[k] = -smoothHeight(i * STEP); }
@@ -200,6 +217,13 @@ export function levelItems(L) {
 export const DECO_CELL = 3.5;
 export function decoAt(cell) {
   const x0 = cell * DECO_CELL;
+  const reg = regionAt(x0);
+  if (reg) {
+    const list = reg.deco || reg.biome.deco;
+    if (!list || !list.length || hash2(cell, 4242) > 0.5) return null;
+    const x = x0 + hash2(cell, 99) * 2.5;
+    return { x, type: list[Math.floor(hash2(cell, 7) * list.length)], s: 0.75 + hash2(cell, 13) * 0.5, flip: hash2(cell, 21) < 0.5, L: -1 };
+  }
   const L = levelAt(x0);
   const b = biomeOf(L);
   const h = hash2(cell, 4242);
