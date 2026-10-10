@@ -497,15 +497,29 @@ canvas { display: block; }
 .shop { justify-content: flex-start; background: linear-gradient(#ffd6ea, #fff0f8); gap: 6px; }
 .shop-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: none; }
 #garagePreview { flex: 1; height: 26vh; min-height: 90px; max-height: 190px; }
-.tabs { display: flex; gap: 8px; flex: none; }
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex: none;
+  max-width: 100%;
+  overflow-x: auto;
+  justify-content: safe center;
+  padding: 2px 4px 8px;
+  scrollbar-width: none;
+  touch-action: pan-x;
+  overscroll-behavior: contain;
+}
+.tabs::-webkit-scrollbar { display: none; }
 .tabs button {
-  width: 64px;
+  flex: none;
+  width: 60px;
   height: 50px;
   border-radius: 18px;
   background: #fff;
   font-size: 26px;
   box-shadow: 0 4px 0 rgba(160, 60, 120, 0.25);
 }
+@media (max-width: 480px) { .tabs { gap: 6px; } .tabs button { width: 50px; height: 46px; font-size: 23px; border-radius: 15px; } }
 .tabs button.on { background: var(--pink); box-shadow: 0 4px 0 var(--pink-d); transform: translateY(-2px); }
 .cards {
   flex: 1;
