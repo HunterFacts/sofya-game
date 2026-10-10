@@ -439,7 +439,10 @@ function frame(now) {
   }
   emit('app:frame', dt, api);
   sound.engine(state === 'play' && !overlay && !world.crashed, input.gas ? 1 : 0, world.car.speed);
-  if (overlay !== 'garage' && overlay !== 'levels') renderer.draw(world, save.look, t);
+  // под непрозрачными экранами (гараж, уровни, домик, подарки, фото) игру не перерисовываем — бережём батарею
+  const sc = screens.get(overlay);
+  const covered = overlay === 'garage' || overlay === 'levels' || (sc && sc.opaque !== false && !sc.el.classList.contains('dim'));
+  if (!covered) renderer.draw(world, save.look, t);
   if (state === 'crash' && !overlay) drawCrashFace();
   requestAnimationFrame(frame);
 }
