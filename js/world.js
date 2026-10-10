@@ -231,8 +231,9 @@ export class World {
     }
     if (this.turbo > 0) {
       const c = Math.cos(car.a), s = Math.sin(car.a);
+      const ex = car.vehicle.exhaust || { x: -1.95, y: 0.05 };   // пламя турбо — из выхлопной трубы машины
       for (let i = 0; i < 2; i++) {
-        ps.push({ type: 'flame', x: car.x - c * 1.95 - s * 0.05, y: car.y - s * 1.95 + c * 0.05, vx: car.vx - c * 8 + (Math.random() - 0.5) * 2, vy: car.vy - s * 8 + (Math.random() - 0.5) * 2, life: 0.3, max: 0.3, size: 0.35 });
+        ps.push({ type: 'flame', x: car.x + c * ex.x - s * ex.y, y: car.y + s * ex.x + c * ex.y, vx: car.vx - c * 8 + (Math.random() - 0.5) * 2, vy: car.vy - s * 8 + (Math.random() - 0.5) * 2, life: 0.3, max: 0.3, size: 0.35 });
       }
     }
   }
