@@ -1,5 +1,15 @@
-// Офлайн-кэш: сначала сеть (чтобы обновления приходили сразу), без сети — из кэша.
-const CACHE = 'sofya-car-v1';
+// Офлайн-режим.
+// При первом запуске (с интернетом) все файлы игры сохраняются на телефоне одним пакетом.
+// Дальше игра всегда открывается из этого пакета — мгновенно и без интернета.
+//
+// Обновление: при запуске с интернетом браузер проверяет этот файл. Если VERSION изменился,
+// новый пакет скачивается ЦЕЛИКОМ (или не скачивается вовсе, если связь оборвалась —
+// тогда остаётся старая рабочая версия) и включается при следующем открытии меню.
+// Поэтому при любом изменении файлов игры VERSION нужно увеличить, а новые файлы — вписать в FILES
+// (git-хук tools/pre-commit делает и проверяет это сам).
+const VERSION = 3;
+const PREFIX = 'sofya-car-';
+const CACHE = PREFIX + VERSION;
 const FILES = [
   './', 'index.html', 'style.css', 'manifest.webmanifest',
   'js/main.js', 'js/config.js', 'js/rng.js', 'js/terrain.js', 'js/car.js', 'js/world.js',
@@ -8,29 +18,44 @@ const FILES = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE)
+      // no-cache: каждый файл сверяется с сервером (неизменённые приходят коротким ответом 304)
+      .then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: 'no-cache' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k.startsWith(PREFIX) && k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );
 });
 
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;
-  e.respondWith(
-    fetch(req)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(req, copy));
-        }
-        return res;
-      })
-      .catch(() => caches.match(req, { ignoreSearch: true })),
-  );
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
+  const root = new URL(self.registration.scope).pathname;
+  const isPage = req.mode === 'navigate' && (url.pathname === root || url.pathname === root + 'index.html');
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    // страница игры (с любыми ?параметрами) — всегда сохранённый index.html
+    const key = isPage ? new Request(self.registration.scope) : req;
+    // файлы пакета отдаются только из него: так версии файлов никогда не перемешиваются
+    const hit = await cache.match(key, { ignoreSearch: true });
+    if (hit) return hit;
+    try {
+      return await fetch(req);
+    } catch (err) {
+      if (isPage || req.mode === 'navigate') {
+        const page = await cache.match(new Request(self.registration.scope));
+        if (page) return page;
+      }
+      throw err;
+    }
+  })());
 });

@@ -1,0 +1,29 @@
+#!/bin/sh
+# Git-хук перед коммитом (ставится командой: sh tools/install-hooks.sh)
+# 1) Если менялись файлы игры, а VERSION в sw.js — нет, увеличивает VERSION:
+#    иначе телефоны продолжат запускать старую версию из офлайн-кэша.
+# 2) Проверяет, что каждый файл игры есть в списке FILES в sw.js
+#    (иначе он не скачается для игры без интернета).
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+GAME='^(index\.html|style\.css|manifest\.webmanifest|js/|icons/)'
+
+if git diff --cached --name-only | grep -qE "$GAME"; then
+  if ! git diff --cached -U0 -- sw.js | grep -qE '^\+const VERSION = '; then
+    v=$(sed -n 's/^const VERSION = \([0-9][0-9]*\);.*/\1/p' sw.js)
+    if [ -z "$v" ]; then echo "pre-commit: в sw.js не найдена строка 'const VERSION = N;'"; exit 1; fi
+    n=$((v + 1))
+    sed -i.bak "s/^const VERSION = $v;/const VERSION = $n;/" sw.js && rm -f sw.js.bak
+    git add sw.js
+    echo "pre-commit: sw.js VERSION $v -> $n"
+  fi
+fi
+
+missing=0
+for f in $(git ls-files index.html style.css manifest.webmanifest 'js/*' 'icons/*'); do
+  if ! grep -q "'$f'" sw.js; then
+    echo "pre-commit: файл $f не указан в FILES в sw.js"
+    missing=1
+  fi
+done
+exit $missing

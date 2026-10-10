@@ -272,41 +272,83 @@ export function drawCar(ctx, state, look, face) {
 }
 
 // ================== СОФЬЯ ==================
-const HAIR = '#8b6b48', HAIR_D = '#6b5034', HAIR_L = '#a98861', SKIN = '#ffdcc6', SKIN_D = '#f1bfa3';
+const HAIR = '#937452', HAIR_D = '#6f5538', HAIR_L = '#b8976b', SKIN = '#ffdcc6', SKIN_D = '#f1bfa3';
 
+// Волнистая линия от текущей точки (x0, y0) до (x1, y1): n «кудряшек» высотой amp
+function wave(ctx, x0, y0, x1, y1, n, amp) {
+  const dx = (x1 - x0) / n, dy = (y1 - y0) / n;
+  const len = Math.hypot(dx, dy) || 1, px = -dy / len, py = dx / len;
+  for (let i = 0; i < n; i++) {
+    const k = i % 2 ? -amp : amp;
+    ctx.quadraticCurveTo(x0 + dx * (i + 0.5) + px * k, y0 + dy * (i + 0.5) + py * k, x0 + dx * (i + 1), y0 + dy * (i + 1));
+  }
+}
+
+// Прядь перед плечом: от виска вниз за край окна
+function hairLock(ctx, d, sway) {
+  const ox = 1.02 * d, ix = 0.74 * d;
+  ctx.beginPath();
+  ctx.moveTo(ox, -0.15);
+  wave(ctx, ox, -0.15, (1.42 + sway) * d, 3.0, 7, 0.13 * d);
+  ctx.lineTo((0.98 + sway) * d, 3.0);
+  wave(ctx, (0.98 + sway) * d, 3.0, ix, 0.35, 6, 0.11 * d);
+  ctx.quadraticCurveTo(0.78 * d, 0.05, ox, -0.15);
+  ctx.closePath();
+  fillStroke(ctx, HAIR, HAIR_D, 0.06);
+  // завитки-блики
+  ctx.strokeStyle = HAIR_L;
+  ctx.lineWidth = 0.07;
+  for (const [y, r] of [[0.55, 0.13], [1.25, 0.15], [1.95, 0.14], [2.6, 0.13]]) {
+    const x = (1.0 + sway * (y / 3) + y * 0.07) * d;
+    ctx.beginPath();
+    ctx.arc(x, y, r, d > 0 ? Math.PI * 0.9 : -Math.PI * 0.1, d > 0 ? Math.PI * 2.3 : Math.PI * 1.3);
+    ctx.stroke();
+  }
+}
+
+// Софья: тёмно-русые, слегка кудрявые длинные волосы (до колен — уходят за край окна)
 export function drawSofya(ctx, mood, t) {
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
-  // хвостик сзади
-  const swing = Math.sin(t * 6) * 0.08;
-  ellipse(ctx, -1.05, 0.15 + swing, 0.38, 0.62, 0.5 + swing);
+  const sway = Math.sin(t * 3) * 0.06 + (mood === 'turbo' ? -0.12 : 0);
+  // копна волос сзади
+  ctx.beginPath();
+  ctx.moveTo(-0.2, -1.14);
+  ctx.quadraticCurveTo(-1.25, -1.12, -1.22, -0.1);
+  wave(ctx, -1.22, -0.1, -1.75 + sway, 3.2, 8, 0.12);
+  ctx.lineTo(1.75 + sway, 3.2);
+  wave(ctx, 1.75 + sway, 3.2, 1.22, -0.1, 8, 0.12);
+  ctx.quadraticCurveTo(1.25, -1.12, 0.2, -1.14);
+  ctx.closePath();
   fillStroke(ctx, HAIR, HAIR_D, 0.08);
-  circle(ctx, -0.82, -0.25, 0.17);
-  fillStroke(ctx, '#ff5fa8', '#d63d86', 0.06);
   // плечи и кофточка
-  ellipse(ctx, 0, 1.55, 1.15, 0.65);
+  ellipse(ctx, 0, 1.6, 1.12, 0.62);
   fillStroke(ctx, '#ff8cc6', '#e0609f', 0.08);
   ellipse(ctx, 0, 1.05, 0.25, 0.2);
   ctx.fillStyle = SKIN_D; ctx.fill();
-  // волосы сзади головы
-  ellipse(ctx, 0, -0.05, 1.12, 1.15);
-  fillStroke(ctx, HAIR, HAIR_D, 0.08);
   // лицо
   ellipse(ctx, 0, 0.1, 0.9, 0.92);
   fillStroke(ctx, SKIN, SKIN_D, 0.06);
-  // чёлка
+  // длинные пряди спереди, на плечах
+  hairLock(ctx, -1, sway);
+  hairLock(ctx, 1, sway);
+  // макушка и кудрявая чёлка
   ctx.beginPath();
-  ctx.moveTo(-1.0, 0.0);
-  ctx.quadraticCurveTo(-1.0, -1.05, 0, -1.08);
-  ctx.quadraticCurveTo(1.0, -1.05, 1.02, 0.0);
-  ctx.quadraticCurveTo(0.75, -0.35, 0.45, -0.38);
-  ctx.quadraticCurveTo(0.3, -0.18, 0.1, -0.42);
-  ctx.quadraticCurveTo(-0.2, -0.2, -0.45, -0.4);
-  ctx.quadraticCurveTo(-0.8, -0.3, -1.0, 0.0);
+  ctx.moveTo(-1.02, 0.02);
+  ctx.quadraticCurveTo(-1.02, -1.1, 0, -1.12);
+  ctx.quadraticCurveTo(1.02, -1.1, 1.04, 0.02);
+  ctx.quadraticCurveTo(0.95, -0.2, 0.82, -0.22);
+  wave(ctx, 0.82, -0.22, -0.82, -0.22, 5, 0.17);
+  ctx.quadraticCurveTo(-0.95, -0.2, -1.02, 0.02);
   fillStroke(ctx, HAIR, HAIR_D, 0.07);
   ctx.strokeStyle = HAIR_L;
   ctx.lineWidth = 0.08;
-  ctx.beginPath(); ctx.moveTo(-0.5, -0.85); ctx.quadraticCurveTo(-0.1, -0.98, 0.3, -0.9); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-0.5, -0.86); ctx.quadraticCurveTo(-0.1, -1.0, 0.3, -0.92); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-0.62, -0.5, 0.12, Math.PI * 0.8, Math.PI * 2.1); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0.5, -0.62, 0.11, Math.PI * 0.9, Math.PI * 2.2); ctx.stroke();
+  // розовая заколка-сердечко
+  heartPath(ctx, 0.72, -0.62, 0.2);
+  fillStroke(ctx, '#ff5fa8', '#d63d86', 0.05);
   // щёчки
   ctx.fillStyle = 'rgba(255,120,150,0.4)';
   ellipse(ctx, -0.52, 0.38, 0.18, 0.11); ctx.fill();

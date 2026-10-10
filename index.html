@@ -57,7 +57,11 @@
   <!-- ===== Меню ===== -->
   <div id="menu" class="screen">
     <div class="top-row">
-      <div class="pill coins-pill"><i class="coin"></i><span class="coinsText">0</span></div>
+      <div class="left-pills">
+        <div class="pill coins-pill"><i class="coin"></i><span class="coinsText">0</span></div>
+        <div class="pill offline-mark" id="offlineMark" aria-label="Игра работает без интернета">✈️<b>✓</b></div>
+        <button class="pill warn-mark hidden" id="noSaveMark" aria-label="Прогресс не сохраняется">⚠️💾</button>
+      </div>
       <div class="toggles">
         <button class="round small" id="btnMusic" aria-label="Музыка">🎵</button>
         <button class="round small" id="btnSound" aria-label="Звук">🔊</button>
@@ -76,6 +80,7 @@
       <button class="tile chest-btn" id="btnChests" aria-label="Сундуки"><canvas width="120" height="120"></canvas><b class="badge"></b></button>
     </div>
     <div class="rotate-hint"><span>📱</span><span class="arrow">↻</span></div>
+    <button class="pill import-btn hidden" id="btnImport">📥 Вставить прогресс из Safari</button>
   </div>
 
   <!-- ===== Пауза ===== -->
@@ -143,15 +148,15 @@
   <!-- ===== «Поверни телефон» (если браузер не умеет поворачивать сам) ===== -->
   <div id="rotFlash" class="hidden"><span>📱</span><span class="arrow">↻</span></div>
 
-  <!-- ===== Подсказка для iPhone ===== -->
-  <div id="iosHint" class="screen dim hidden">
+  <!-- ===== Подсказки для родителей (iPhone, встроенные браузеры, нет сохранения) ===== -->
+  <div id="infoCard" class="screen dim hidden">
     <div class="ios-card">
-      <div class="ios-title">Полный экран на iPhone</div>
-      <div class="ios-steps">
-        <div><span class="share-ico"></span> → «На экран „Домой“» <span class="plus">＋</span></div>
-        <div>Потом открывайте игру с иконки 🚙</div>
+      <div class="ios-title" id="infoTitle"></div>
+      <div class="ios-steps" id="infoBody"></div>
+      <div class="info-buttons">
+        <button class="pill info-copy hidden" id="infoCopy">📋 Скопировать прогресс</button>
+        <button class="round" id="infoOk" aria-label="Понятно">✓</button>
       </div>
-      <button class="play small-play" id="iosOk"><span class="i-play"></span></button>
     </div>
   </div>
 

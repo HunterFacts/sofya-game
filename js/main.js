@@ -4,7 +4,7 @@ import { levelStart } from './terrain.js';
 import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Sound } from './audio.js';
-import { load, store } from './save.js';
+import { load, store, KEY, replaceSave, storageOK, exportCode, parseCode, setConflictHandler } from './save.js';
 import { Garage, ChestOpener, renderLevels, showToast, boosterIcon, chestIcon } from './ui.js';
 import { drawAnimal } from './art.js';
 import { wrapAngle } from './rng.js';
@@ -102,6 +102,7 @@ for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => soun
 
 // ---------- полный экран ----------
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const hasSW = 'serviceWorker' in navigator;
 const standalone = () => navigator.standalone || window.matchMedia('(display-mode: standalone)').matches || window.matchMedia('(display-mode: fullscreen)').matches;
 const coarse = window.matchMedia('(pointer: coarse)').matches;
 function canFullscreen() { const d = document.documentElement; return !!(d.requestFullscreen || d.webkitRequestFullscreen); }
@@ -132,7 +133,7 @@ async function rotateScreen() {
 function toggleFullscreen() {
   if (isFullscreen()) exitFullscreen();
   else if (canFullscreen() && !standalone()) goFullscreen();
-  else if (isIOS && !standalone()) show('iosHint', true);
+  else if (isIOS && !standalone()) showInfo(hasSW ? 'ios-install' : 'ios-inapp');
 }
 let rotTimer = 0;
 function flashRotate() {
@@ -173,15 +174,25 @@ function setState(s) {
   show('touch', s === 'play');
   show('pause', s === 'pause');
   show('crash', s === 'crash');
-  if (s === 'play') show('iosHint', false);
+  if (s === 'play') show('infoCard', false);
+  if (s === 'menu' && reloadWhenIdle) reloadNow();
   show('gasHint', s === 'play' && !save.seen.gas);
   if (s !== 'play') clearInput();
   keepAwake(s === 'play');
   refresh();
 }
 
+// просим браузер не стирать сохранения и офлайн-файлы, когда на телефоне мало места
+let persistAsked = false;
+function keepStorage() {
+  if (persistAsked || !navigator.storage || !navigator.storage.persist) return;
+  persistAsked = true;
+  navigator.storage.persisted().then((p) => p || navigator.storage.persist()).catch(() => {});
+}
+
 function play() {
   sound.unlock();
+  keepStorage();
   if (coarse) goFullscreen();
   if (!worldReady || world.crashed || world.L !== save.level) placeWorld();
   setState('play');
@@ -236,6 +247,7 @@ function closeOverlay(click = true) {
   if (overlay === 'levels') show('levels', false);
   overlay = null;
   refresh();
+  if (state === 'menu' && reloadWhenIdle) reloadNow();
 }
 
 // ---------- кнопки ----------
@@ -256,7 +268,10 @@ onTap('crashGarage', () => { sound.click(); openOverlay('garage'); });
 onTap('crashChests', () => { sound.click(); openOverlay('chest'); });
 onTap('garageBack', () => closeOverlay());
 onTap('levelsBack', () => closeOverlay());
-onTap('iosOk', () => { sound.click(); show('iosHint', false); });
+onClick('infoOk', () => { sound.click(); show('infoCard', false); });
+onClick('infoCopy', copyProgress);
+onClick('noSaveMark', () => showInfo('nosave'));
+onClick('btnImport', importProgress);
 onClick('btnFull', () => { sound.click(); toggleFullscreen(); });
 onClick('pauseFull', () => { sound.click(); toggleFullscreen(); });
 onClick('btnRotate', () => { sound.click(); rotateScreen(); });
@@ -298,6 +313,7 @@ function canUpgrade() {
   return UPGRADES.some((u) => save.up[u.id] < MAX_UP && save.coins >= upgradePrice(u, save.up[u.id]));
 }
 function refresh() {
+  syncImportButton();
   for (const e of document.querySelectorAll('.coinsText')) e.textContent = save.coins;
   $('playLevel').textContent = save.level + 1;
   const n = save.chests.length ? String(save.chests.length) : '';
@@ -413,6 +429,85 @@ function drawCrashFace() {
   drawAnimal(ctx, save.look.animal, 'dizzy', t, save.look.hat);
 }
 
+// ---------- подсказки для родителей ----------
+const INFO = {
+  'ios-install': {
+    title: 'Как играть на iPhone',
+    body: `<ol>
+      <li><span class="share-ico"></span> «Поделиться» → «На экран „Домой“» <span class="plus">＋</span></li>
+      <li>Откройте игру с иконки 🚙, пока есть интернет, и дождитесь значка ✈️✓ — дальше она работает без интернета.</li>
+      <li>Играйте только с иконки: прогресс хранится там. Из Safari он сам не переносится, а в Safari стирается, если неделю не играть.</li>
+    </ol>`,
+  },
+  'ios-inapp': {
+    title: 'Откройте в Safari',
+    body: `<div>Ссылка открыта внутри другого приложения — здесь игра не сохранится и не будет работать без интернета.</div>
+      <div class="note">Нажмите «Открыть в Safari» (⋯ или 🧭), затем <span class="share-ico"></span> «Поделиться» → «На экран „Домой“».</div>`,
+  },
+  nosave: {
+    title: 'Прогресс не сохраняется',
+    body: `<div>Браузер запрещает сохранять данные игры (приватный режим, запрет cookie или встроенный браузер).</div>
+      <div class="note">Откройте игру в обычном Safari или Chrome и добавьте на главный экран.</div>`,
+  },
+};
+function hasProgress() { return save.maxLevel > 0 || save.coins > 0 || save.chests.length > 0; }
+function showInfo(kind) {
+  const info = INFO[kind];
+  $('infoTitle').textContent = info.title;
+  let body = info.body;
+  const canCopy = kind === 'ios-install' && hasProgress();
+  if (canCopy) body += '<div class="note">Уже играли в Safari? Нажмите «Скопировать прогресс», откройте игру с иконки и нажмите там «📥 Вставить прогресс».</div>';
+  $('infoBody').innerHTML = body;
+  show('infoCopy', canCopy);
+  show('infoCard', true);
+}
+
+// ---------- перенос прогресса (Safari → иконка на iPhone, новый телефон) ----------
+async function copyProgress() {
+  const code = exportCode(save);
+  try {
+    await navigator.clipboard.writeText(code);
+    $('infoCopy').textContent = '✓ Скопировано';
+    sound.buy();
+  } catch (_) {
+    window.prompt('Скопируйте этот код:', code);
+  }
+}
+const freshSave = () => save.maxLevel === 0 && save.coins < 30 && !save.chests.length && save.owned.animal.length === 1;
+async function importProgress() {
+  let data = null;
+  try { data = parseCode(await navigator.clipboard.readText()); } catch (_) { /* нет доступа к буферу */ }
+  if (!data) data = parseCode(window.prompt('Вставьте код прогресса, скопированный в Safari:', ''));
+  if (!data) { sound.deny(); return; }
+  replaceSave(save, data);
+  save.t = Date.now();
+  persist(true);
+  sound.setMusic(save.music);
+  sound.setSound(save.sound);
+  placeWorld();
+  hudCache = {};
+  refresh();
+  sound.buy();
+}
+function syncImportButton() { show('btnImport', standalone() && freshSave()); }
+
+// ---------- несколько копий игры (вкладка + иконка): берём самый свежий прогресс ----------
+function resync() {
+  const fresh = load();
+  if ((fresh.t || 0) <= (save.t || 0)) return;
+  replaceSave(save, fresh);
+  if (overlay) closeOverlay(false);
+  if (state !== 'menu') setState('menu');
+  sound.setMusic(save.music);
+  sound.setSound(save.sound);
+  placeWorld();
+  hudCache = {};
+  refresh();
+}
+window.addEventListener('storage', (e) => { if (e.key === KEY) resync(); });
+setConflictHandler(() => resync());
+window.addEventListener('pageshow', (e) => { if (e.persisted) resync(); });
+
 // ---------- системное ----------
 window.addEventListener('resize', () => renderer.resize());
 window.addEventListener('orientationchange', () => setTimeout(() => renderer.resize(), 200));
@@ -423,15 +518,32 @@ document.addEventListener('visibilitychange', () => {
     persist(true);
     sound.stopMusic();
     if (sound.ctx) sound.ctx.suspend().catch(() => {});
-  } else if (sound.ctx) {
-    sound.ctx.resume().catch(() => {});
-    if (save.music) sound.startMusic();
+  } else {
+    resync();
+    if (swReg) swReg.update().catch(() => {});
+    if (sound.ctx) {
+      sound.ctx.resume().catch(() => {});
+      if (save.music) sound.startMusic();
+    }
   }
 });
 window.addEventListener('pagehide', () => { saveRun(); persist(true); });
 
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('sw.js').catch(() => {});
+// ---------- офлайн-режим: https (GitHub Pages) или localhost ----------
+let swReg = null;
+let reloadWhenIdle = false;
+function reloadNow() { saveRun(); persist(true); location.reload(); }
+if (hasSW && window.isSecureContext) {
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+    .then((reg) => { swReg = reg; return navigator.serviceWorker.ready; })
+    .then(() => { if (!isIOS || standalone()) document.body.classList.add('offline-ready'); })
+    .catch(() => {});
+  // новая версия скачалась целиком: показываем её, как только Софья окажется в меню
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
+    if (state === 'menu' && !overlay) reloadNow(); else reloadWhenIdle = true;
+  });
 }
 
 // для проверки в браузере
@@ -439,5 +551,7 @@ window.__game = { world, save, renderer, setState, play, input, get state() { re
 
 syncScreenButtons();
 setState('menu');
-if (isIOS && !standalone() && !save.seen.ios) { save.seen.ios = 1; persist(); show('iosHint', true); }
+syncImportButton();
+if (!storageOK()) { show('noSaveMark', true); showInfo('nosave'); }
+else if (isIOS && !standalone()) showInfo(hasSW ? 'ios-install' : 'ios-inapp');
 requestAnimationFrame(frame);
