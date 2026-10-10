@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>Sofya Car</title>
+  <meta name="description" content="Машинки Софьи — гонки по холмам с кошкой Мариссой">
+  <meta name="theme-color" content="#ff6fae">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sofya Car">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <!-- зона касаний: левая половина — тормоз, правая — газ -->
+  <div id="touch" class="hidden"></div>
+
+  <!-- ===== HUD ===== -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="pill coins-pill"><i class="coin"></i><span id="hudCoins">0</span></div>
+      <div class="progress">
+        <div class="lvl-badge" id="hudLevel">1</div>
+        <div class="bar"><div class="fill" id="hudFill"></div><div class="dot" id="hudDot"></div></div>
+        <div class="flag"></div>
+      </div>
+      <div class="hud-right">
+        <button class="round chest-btn hidden" id="hudChest" aria-label="Сундуки"><canvas width="96" height="96"></canvas><b class="badge"></b></button>
+        <button class="round" id="btnPause" aria-label="Пауза"><span class="i-pause"></span></button>
+      </div>
+    </div>
+    <div class="boosters" id="boosters">
+      <button class="boost" data-k="turbo" aria-label="Турбо"><canvas width="96" height="96"></canvas><b>0</b><i class="ring"></i></button>
+      <button class="boost" data-k="magnet" aria-label="Магнит"><canvas width="96" height="96"></canvas><b>0</b><i class="ring"></i></button>
+      <button class="boost" data-k="shield" aria-label="Щит"><canvas width="96" height="96"></canvas><b>0</b><i class="ring"></i></button>
+    </div>
+    <div class="pedal brake" id="pedalBrake"><span></span></div>
+    <div class="pedal gas" id="pedalGas"><span></span></div>
+    <div id="gasHint" class="hidden">👆</div>
+  </div>
+
+  <!-- ===== Уровень пройден ===== -->
+  <div id="toast" class="hidden">
+    <div class="toast-card">
+      <div class="lvl-badge big" id="toastLevel">1</div>
+      <div class="stars" id="toastStars"><i class="star"></i><i class="star"></i><i class="star"></i></div>
+      <div class="toast-rewards" id="toastRewards"></div>
+    </div>
+  </div>
+
+  <!-- ===== Меню ===== -->
+  <div id="menu" class="screen">
+    <div class="top-row">
+      <div class="pill coins-pill"><i class="coin"></i><span class="coinsText">0</span></div>
+      <div class="toggles">
+        <button class="round small" id="btnMusic" aria-label="Музыка">🎵</button>
+        <button class="round small" id="btnSound" aria-label="Звук">🔊</button>
+        <button class="round small" id="btnFull" aria-label="Во весь экран"><span class="i-full"></span></button>
+      </div>
+    </div>
+    <div class="logo">
+      <div class="logo-title">Sofya Car</div>
+      <div class="logo-sub">машинки Софьи</div>
+    </div>
+    <div class="menu-bottom">
+      <button class="tile" id="btnLevels" aria-label="Уровни">🗺️</button>
+      <button class="play" id="btnPlay" aria-label="Играть"><span class="i-play"></span><b id="playLevel">1</b></button>
+      <button class="tile" id="btnGarage" aria-label="Гараж">🔧</button>
+      <button class="tile chest-btn" id="btnChests" aria-label="Сундуки"><canvas width="120" height="120"></canvas><b class="badge"></b></button>
+    </div>
+    <div class="rotate-hint"><span>📱</span><span class="arrow">↻</span></div>
+  </div>
+
+  <!-- ===== Пауза ===== -->
+  <div id="pause" class="screen dim hidden">
+    <div class="panel-row">
+      <button class="tile" id="pauseHome" aria-label="Меню">🏠</button>
+      <button class="tile" id="pauseRestart" aria-label="Заново">↻</button>
+      <button class="play" id="pauseResume" aria-label="Продолжить"><span class="i-play"></span></button>
+      <button class="tile" id="pauseGarage" aria-label="Гараж">🔧</button>
+      <button class="tile chest-btn" id="pauseChests" aria-label="Сундуки"><canvas width="120" height="120"></canvas><b class="badge"></b></button>
+    </div>
+    <div class="toggles center">
+      <button class="round small" id="pauseMusic">🎵</button>
+      <button class="round small" id="pauseSound">🔊</button>
+    </div>
+  </div>
+
+  <!-- ===== Авария ===== -->
+  <div id="crash" class="screen dim hidden">
+    <canvas class="crash-face" id="crashFace" width="300" height="300"></canvas>
+    <div class="pill coins-pill run-coins"><i class="coin"></i><span id="crashCoins">+0</span></div>
+    <div class="panel-row">
+      <button class="tile" id="crashHome" aria-label="Меню">🏠</button>
+      <button class="play" id="crashRetry" aria-label="Ещё раз"><span class="i-retry">↻</span></button>
+      <button class="tile" id="crashGarage" aria-label="Гараж">🔧<i class="dot-new hidden"></i></button>
+      <button class="tile chest-btn" id="crashChests" aria-label="Сундуки"><canvas width="120" height="120"></canvas><b class="badge"></b></button>
+    </div>
+  </div>
+
+  <!-- ===== Гараж / магазин ===== -->
+  <div id="garage" class="screen shop hidden">
+    <div class="shop-head">
+      <button class="round" id="garageBack" aria-label="Назад">⬅</button>
+      <canvas id="garagePreview"></canvas>
+      <div class="pill coins-pill"><i class="coin"></i><span class="coinsText">0</span></div>
+    </div>
+    <div class="tabs" id="tabs">
+      <button data-tab="up" class="on">🔧</button>
+      <button data-tab="boost">⚡</button>
+      <button data-tab="paint">🎨</button>
+      <button data-tab="animal">🐾</button>
+      <button data-tab="hat">👑</button>
+    </div>
+    <div class="cards" id="cards"></div>
+  </div>
+
+  <!-- ===== Уровни ===== -->
+  <div id="levels" class="screen shop hidden">
+    <div class="shop-head">
+      <button class="round" id="levelsBack" aria-label="Назад">⬅</button>
+      <div class="pill"><i class="star small"></i><span id="starsTotal">0</span></div>
+    </div>
+    <div class="level-grid" id="levelGrid"></div>
+  </div>
+
+  <!-- ===== Открытие сундука ===== -->
+  <div id="chest" class="screen dim hidden">
+    <canvas id="chestCanvas"></canvas>
+    <div class="chest-rewards" id="chestRewards"></div>
+    <div class="tap-hint" id="chestHint">👆</div>
+  </div>
+
+  <!-- ===== Подсказка для iPhone ===== -->
+  <div id="iosHint" class="screen dim hidden">
+    <div class="ios-card">
+      <div class="ios-title">Полный экран на iPhone</div>
+      <div class="ios-steps">
+        <div><span class="share-ico"></span> → «На экран „Домой“» <span class="plus">＋</span></div>
+        <div>Потом открывайте игру с иконки 🚙</div>
+      </div>
+      <button class="play small-play" id="iosOk"><span class="i-play"></span></button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

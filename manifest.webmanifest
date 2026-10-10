@@ -1,0 +1,17 @@
+{
+  "name": "Sofya Car — машинки Софьи",
+  "short_name": "Sofya Car",
+  "description": "Гонки по холмам с кошкой Мариссой",
+  "lang": "ru",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#ffd6ea",
+  "theme_color": "#ff6fae",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
