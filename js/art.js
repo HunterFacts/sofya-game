@@ -146,8 +146,9 @@ export function animalKit(ctx) {
   };
 }
 
-// Новые зверята из других файлов: draw(ctx, mood, t, kit) рисует голову радиусом ~1 с центром (0,0)
-// (шапочку рисовать не нужно — её добавит drawAnimal). opt.hatTop — высота макушки для шапочки.
+// Новые зверята из других файлов: draw(ctx, mood, t, kit, hat) рисует голову радиусом ~1 с центром (0,0)
+// (шапочку рисовать не нужно — её добавит drawAnimal). opt.hatTop — высота макушки для шапочки
+// (число или hat => число), opt.glassesY — высота очков (по умолчанию -0.12).
 const extraAnimals = new Map();
 export function registerAnimal(id, draw, opt = {}) { extraAnimals.set(id, { draw, ...opt }); }
 
@@ -162,9 +163,9 @@ export function drawAnimal(ctx, id, mood, t, hat) {
   const extra = extraAnimals.get(id);
   if (extra) {
     ctx.save();
-    extra.draw(ctx, mood, t, kit);
+    extra.draw(ctx, mood, t, kit, hat);
     ctx.restore();
-    drawHat(ctx, hat, t, id, extra.hatTop);
+    drawHat(ctx, hat, t, id, typeof extra.hatTop === 'function' ? extra.hatTop(hat) : extra.hatTop, extra.glassesY);
     return;
   }
 
@@ -321,7 +322,7 @@ export function drawAnimal(ctx, id, mood, t, hat) {
 }
 
 // ================== ШАПОЧКИ ==================
-export function drawHat(ctx, hat, t, id, hatTop) {
+export function drawHat(ctx, hat, t, id, hatTop, glassesY) {
   if (!hat || hat === 'none') return;
   const top = hatTop !== undefined ? hatTop : id === 'bunny' ? -0.82 : id === 'unicorn' ? -0.78 : -0.86;
   ctx.save();
@@ -367,7 +368,7 @@ export function drawHat(ctx, hat, t, id, hatTop) {
       break;
     }
     case 'glasses': {
-      ctx.translate(0, id === 'penguin' ? -0.02 : -0.12);
+      ctx.translate(0, glassesY !== undefined ? glassesY : id === 'penguin' ? -0.02 : -0.12);
       for (const d of [-1, 1]) { heartPath(ctx, d * 0.4, 0.08, 0.3); fillStroke(ctx, 'rgba(40,20,60,0.85)', '#ff4f9a', 0.06); }
       ctx.strokeStyle = '#ff4f9a'; ctx.lineWidth = 0.06;
       ctx.beginPath(); ctx.moveTo(-0.15, -0.05); ctx.quadraticCurveTo(0, -0.12, 0.15, -0.05); ctx.stroke();
