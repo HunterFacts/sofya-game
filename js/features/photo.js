@@ -20,7 +20,7 @@ const CSS = `
 }
 .photo-back { position: absolute; top: calc(var(--sat) + 10px); left: calc(var(--sal) + 12px); z-index: 2; }
 .photo-pol {
-  position: relative; flex: none; height: min(84vh, 620px); aspect-ratio: ${PW} / ${PH};
+  position: relative; flex: none; height: min(84vh, 620px, 50vw); aspect-ratio: ${PW} / ${PH};
   border-radius: 8px; box-shadow: 0 12px 26px rgba(120, 30, 80, 0.3);
   transform: rotate(-2.5deg); animation: photoIn 0.6s cubic-bezier(.2, 1.4, .5, 1) both;
 }
@@ -32,7 +32,7 @@ const CSS = `
   animation: photoDev 2.2s ease-in 0.35s both;
 }
 .photo-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.photo-car { width: min(40vw, 400px); height: min(46vh, 240px); touch-action: none; }
+.photo-car { width: min(34vw, 400px); height: min(46vh, 240px); touch-action: none; }
 .photo-car.boing { animation: photoBoing 0.5s; }
 .photo-share { width: 104px; height: 104px; }
 .photo-share svg { width: 56%; height: 56%; }

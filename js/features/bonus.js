@@ -628,7 +628,7 @@ function injectStyle() {
 .popup.bonus-portal { padding: 6px 14px; }
 .popup.bonus-portal canvas { width: 76px; height: 76px; }
 .popup.bonus-pop { padding: 6px 24px 6px 10px; }
-@media (max-height: 500px) { .popup.bonus-pop, .popup.bonus-portal { margin-top: -84px; } }
+
 .popup.bonus-pop canvas { width: 84px; height: 84px; }
 .bonus-num { font-size: 44px; font-weight: 900; color: #f0a400; -webkit-text-stroke: 1.5px #b8730a; letter-spacing: 1px; }
 `;

@@ -43,13 +43,31 @@ function merge(base, data) {
       continue; // испорченное поле — оставляем значение по умолчанию
     } else base[k] = data[k];
   }
+  // поля, о которых эта версия не знает (сохранены более новой), не теряем
+  for (const k of Object.keys(data)) if (!(k in base)) base[k] = data[k];
   return base;
+}
+
+// Старая версия игры, оставшаяся открытой в другой вкладке, при записи выбрасывает новые поля
+// (котята, домик, наклейки…). Копия в отдельном ключе позволяет вернуть их.
+function restoreDropped(data) {
+  try {
+    const x = JSON.parse(localStorage.getItem(KEY + '-x') || 'null');
+    if (!isObj(x)) return data;
+    for (const k of Object.keys(x)) {
+      if (data[k] === undefined) data[k] = x[k];
+      else if (isObj(data[k]) && isObj(x[k]) && (k === 'owned' || k === 'look')) {
+        for (const kk of Object.keys(x[k])) if (data[k][kk] === undefined) data[k][kk] = x[k][kk];
+      }
+    }
+  } catch (e) { /* нет копии */ }
+  return data;
 }
 
 export function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return merge(DEFAULT(), JSON.parse(raw));
+    if (raw) return merge(DEFAULT(), restoreDropped(JSON.parse(raw)));
   } catch (e) { /* приватный режим или испорченные данные */ }
   return DEFAULT();
 }
@@ -58,6 +76,8 @@ let timer = 0;
 let onConflict = null;
 // Вызывается, если другая копия игры (вкладка, иконка) уже записала более свежий прогресс
 export function setConflictHandler(fn) { onConflict = fn; }
+// отменить отложенную запись (прогресс только что заменён более свежим из другой копии)
+export function cancelStore() { clearTimeout(timer); }
 
 // force — осознанная перезапись (сброс, перенос прогресса): без проверки на «более свежий» прогресс
 export function store(save, now = false, force = false) {
@@ -71,7 +91,11 @@ export function store(save, now = false, force = false) {
       } catch (e) { /* испорченные данные — просто перезапишем */ }
     }
     save.t = Math.max(Date.now(), (save.t || 0) + 1);
-    try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* нет места */ }
+    try {
+      const json = JSON.stringify(save);
+      localStorage.setItem(KEY, json);
+      localStorage.setItem(KEY + '-x', json);
+    } catch (e) { /* нет места */ }
   };
   if (now) write(); else timer = setTimeout(write, 300);
 }

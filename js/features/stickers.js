@@ -534,7 +534,7 @@ const sfx = {
 // ================== СТИЛИ ==================
 const CSS = `
 /* с новыми вкладками гаража ряд вкладок не помещается на узком экране — переносим */
-#garage > .tabs { max-width: 100%; flex-wrap: wrap; justify-content: center; row-gap: 6px; }
+#garage > .tabs { max-width: 100%; }
 #garage.stk-mode #garagePreview { display: none; }
 #garage.stk-mode #cards { display: block; overflow: hidden; padding: 2px 0 0; touch-action: none; }
 @media (orientation: landscape) {

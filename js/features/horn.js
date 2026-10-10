@@ -251,7 +251,8 @@ function onMenuTap(x, y) {
     react({ sofya: 'happy', pose: 'wave' }, 1.4);
     spawn('driver', 'star', 3);
   } else {
-    if (v.horn === 'jingle') jingle(); else beep();
+    if (v.horn !== 'jingle') beep();
+    else if (now() >= readyAt) { readyAt = now() + JINGLE_COOLDOWN; jingle(); }
     react({ pet: 'happy', sofya: 'happy' }, 1.0);
     spawn('pet', v.horn === 'jingle' ? 'note' : 'heart', 1);
     spawn('driver', 'note', 2);

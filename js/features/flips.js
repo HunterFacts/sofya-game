@@ -266,6 +266,9 @@ function coinTarget() {
   if (r.width) target = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   const pr = el.parentNode.getBoundingClientRect();
   if (pr.width) pillBox = { left: pr.left, bottom: pr.bottom };
+  const fp = document.querySelector('#hud .house-fishpill:not(.hidden)');
+  const fr = fp && fp.getBoundingClientRect();
+  if (fr && fr.width) pillBox.bottom = Math.max(pillBox.bottom, fr.bottom);
 }
 
 function coinShower(value) {

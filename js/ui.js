@@ -329,8 +329,7 @@ export class ChestOpener {
     if (!this.c.save.chests.length) return false;
     $('chest').classList.remove('hidden');
     this.next();
-    this.running = true;
-    this.loop();
+    if (!this.running) { this.running = true; this.loop(); }
     return true;
   }
 

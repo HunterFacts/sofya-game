@@ -332,6 +332,7 @@ canvas { display: block; }
   position: fixed;
   top: calc(var(--sat) + 72px);
   right: calc(var(--sar) + 10px);
+  left: calc(var(--sal) + 10px);
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -355,6 +356,8 @@ canvas { display: block; }
 }
 .popup.out { opacity: 0; transform: translateY(-14px); }
 .popup canvas { width: 44px; height: 44px; }
+.popup { max-width: 100%; }
+@media (max-width: 480px) { #popups .kittens-pop canvas { width: 34px; height: 34px; } }
 @media (max-height: 420px) { .popup { transform: scale(0.85); } }
 .boost.extra { font-size: 34px; display: grid; place-items: center; }
 
@@ -383,6 +386,7 @@ canvas { display: block; }
 #toast .star:nth-child(3) { animation-delay: 0.5s; }
 .toast-rewards { display: flex; align-items: center; gap: 10px; }
 .toast-rewards canvas { width: 54px; height: 54px; }
+@media (max-width: 480px) { #toast { transform: translateX(-50%) scale(0.72); transform-origin: top center; } }
 
 /* ---------- Экраны ---------- */
 .screen {
@@ -472,16 +476,20 @@ canvas { display: block; }
   .rotate-hint {
     display: flex;
     position: absolute;
-    top: 63%;
-    left: 50%;
-    transform: translateX(-50%);
+    top: calc(var(--sat) + 66px);
+    left: calc(var(--sal) + 12px);
     gap: 4px;
     align-items: center;
-    padding: 8px 14px;
+    padding: 6px 12px;
     border-radius: 20px;
     background: rgba(255, 255, 255, 0.85);
-    font-size: 34px;
+    font-size: 26px;
+    pointer-events: none;
   }
+  .round.small { width: 40px; height: 40px; font-size: 19px; }
+  .toggles { gap: 6px; }
+  #menu .left-pills { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .rotate-hint { top: calc(var(--sat) + 112px); }
   .rotate-hint span:first-child { animation: tilt 2s ease-in-out infinite; display: inline-block; }
   .rotate-hint .arrow { color: var(--pink); font-weight: 900; }
   .menu-bottom { flex-wrap: wrap; justify-content: center; width: 300px; row-gap: 18px; }
@@ -497,7 +505,7 @@ canvas { display: block; }
 /* ---------- Магазин ---------- */
 .shop { justify-content: flex-start; background: linear-gradient(#ffd6ea, #fff0f8); gap: 6px; }
 .shop-head { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: none; }
-#garagePreview { flex: 1; height: 26vh; min-height: 90px; max-height: 190px; }
+#garagePreview { flex: 1; width: 0; min-width: 0; height: 26vh; min-height: 90px; max-height: 190px; }
 .tabs {
   display: flex;
   gap: 8px;

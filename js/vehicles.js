@@ -773,8 +773,8 @@ registerVehicle({
     uniCab(ctx);
     fillStroke(ctx, K.paintFill(-1.27, -0.4), paint.dark, 0.05);
     K.decorate(uniCab, 'cab', { x0: -1.2, x1: 1.35, y0: -1.3, y1: -0.4 });
-    K.windows();
     mane(ctx, K.t, speed);
+    K.windows();
     uniEar(ctx, 0.7, -1.04, 0.4, paint.light, paint.dark);
     uniEar(ctx, 0.9, -0.93, 0.6, paint.body, paint.dark);
     K.cargo();

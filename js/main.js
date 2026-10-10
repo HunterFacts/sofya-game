@@ -4,7 +4,7 @@ import { levelStart } from './terrain.js';
 import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Sound } from './audio.js';
-import { load, store, KEY, replaceSave, storageOK, exportCode, parseCode, setConflictHandler, freshSave as newSave } from './save.js';
+import { load, store, cancelStore, KEY, replaceSave, storageOK, exportCode, parseCode, setConflictHandler, freshSave as newSave } from './save.js';
 import { Garage, ChestOpener, renderLevels, showToast, boosterIcon, chestIcon } from './ui.js';
 import { drawAnimal } from './art.js';
 import { wrapAngle } from './rng.js';
@@ -18,7 +18,8 @@ sound.soundOn = save.sound;
 sound.musicOn = save.music;
 const world = new World();
 const renderer = new Renderer($('game'));
-const persist = (now = false, force = false) => store(save, now, force);
+let resyncing = false; // прогресс подменён из другой копии — закрытие экранов не должно его перезаписывать
+const persist = (now = false, force = false) => { if (!resyncing) store(save, now, force); };
 
 let state = 'menu';       // menu | play | pause | crash
 let overlay = null;       // garage | levels | chest (поверх state)
@@ -266,6 +267,7 @@ function closeOverlay(click = true) {
     }
   }
   if (overlay === 'levels') show('levels', false);
+  if (overlay === 'chest') { chests.running = false; show('chest', false); }
   const sc = screens.get(overlay);
   if (sc) { sc.el.classList.add('hidden'); try { sc.close && sc.close(api); } catch (e) { console.error(e); } }
   overlay = null;
@@ -503,7 +505,8 @@ async function copyProgress() {
     window.prompt('Скопируйте этот код:', code);
   }
 }
-const freshSave = () => save.maxLevel === 0 && save.coins < 30 && !save.chests.length && save.owned.animal.length === 1;
+// монеты из ежедневного подарка не в счёт: его могут открыть раньше, чем перенесут прогресс
+const freshSave = () => save.maxLevel === 0 && save.coins < 30 + (save.daily && save.daily.n ? 1500 : 0) && !save.chests.length && save.owned.animal.length === 1;
 async function importProgress() {
   let data = null;
   try { data = parseCode(await navigator.clipboard.readText()); } catch (_) { /* нет доступа к буферу */ }
@@ -516,6 +519,7 @@ async function importProgress() {
   placeWorld();
   hudCache = {};
   refresh();
+  emit('app:state', state, api);
   sound.buy();
 }
 function syncImportButton() { show('btnImport', standalone() && freshSave()); }
@@ -579,6 +583,7 @@ function resetProgress() {
   placeWorld();
   hudCache = {};
   refresh();
+  emit('app:state', state, api);
   sound.pop();
   setTimeout(closeParent, 300);
 }
@@ -587,14 +592,18 @@ function resetProgress() {
 function resync() {
   const fresh = load();
   if ((fresh.t || 0) <= (save.t || 0)) return;
+  cancelStore();
   replaceSave(save, fresh);
-  if (overlay) closeOverlay(false);
-  if (state !== 'menu') setState('menu');
-  sound.setMusic(save.music);
-  sound.setSound(save.sound);
-  placeWorld();
-  hudCache = {};
-  refresh();
+  resyncing = true;
+  try {
+    if (overlay) closeOverlay(false);
+    sound.setMusic(save.music);
+    sound.setSound(save.sound);
+    placeWorld();
+    hudCache = {};
+    if (state !== 'menu') setState('menu');
+    else { refresh(); emit('app:state', state, api); }
+  } finally { resyncing = false; }
 }
 window.addEventListener('storage', (e) => { if (e.key === KEY) resync(); });
 setConflictHandler(() => resync());
