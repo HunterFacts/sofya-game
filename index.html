@@ -151,6 +151,23 @@
   <!-- ===== «Поверни телефон» (если браузер не умеет поворачивать сам) ===== -->
   <div id="rotFlash" class="hidden"><span>📱</span><span class="arrow">↻</span></div>
 
+  <!-- ===== Для родителей: открывается, если 3 секунды держать надпись «Sofya Car» в меню ===== -->
+  <div id="parentCard" class="screen dim hidden">
+    <div class="ios-card parent-card">
+      <button class="round small parent-close" id="parentClose" aria-label="Закрыть">✕</button>
+      <div class="ios-title">Для родителей</div>
+      <div id="parentMain" class="parent-actions">
+        <button class="pill parent-btn" id="parentCopy">📋 Скопировать прогресс</button>
+        <button class="pill parent-btn" id="parentPaste">📥 Вставить прогресс</button>
+        <button class="pill parent-btn danger" id="parentReset">🗑 Сбросить прогресс</button>
+      </div>
+      <div id="parentConfirm" class="parent-actions hidden">
+        <div class="ios-steps">Точно сбросить весь прогресс?<div class="note">Пропадут монеты, уровни, звёзды, сундуки, зверята и все покупки. Отменить будет нельзя.</div></div>
+        <button class="hold-btn" id="parentHold"><i></i><span>Держите 2 секунды, чтобы сбросить</span></button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== Подсказки для родителей (iPhone, встроенные браузеры, нет сохранения) ===== -->
   <div id="infoCard" class="screen dim hidden">
     <div class="ios-card">

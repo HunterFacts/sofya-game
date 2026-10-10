@@ -4,7 +4,7 @@ import { levelStart } from './terrain.js';
 import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Sound } from './audio.js';
-import { load, store, KEY, replaceSave, storageOK, exportCode, parseCode, setConflictHandler } from './save.js';
+import { load, store, KEY, replaceSave, storageOK, exportCode, parseCode, setConflictHandler, freshSave as newSave } from './save.js';
 import { Garage, ChestOpener, renderLevels, showToast, boosterIcon, chestIcon } from './ui.js';
 import { drawAnimal } from './art.js';
 import { wrapAngle } from './rng.js';
@@ -18,7 +18,7 @@ sound.soundOn = save.sound;
 sound.musicOn = save.music;
 const world = new World();
 const renderer = new Renderer($('game'));
-const persist = (now = false) => store(save, now);
+const persist = (now = false, force = false) => store(save, now, force);
 
 let state = 'menu';       // menu | play | pause | crash
 let overlay = null;       // garage | levels | chest (поверх state)
@@ -507,8 +507,7 @@ async function importProgress() {
   if (!data) data = parseCode(window.prompt('Вставьте код прогресса, скопированный в Safari:', ''));
   if (!data) { sound.deny(); return; }
   replaceSave(save, data);
-  save.t = Date.now();
-  persist(true);
+  persist(true, true);
   sound.setMusic(save.music);
   sound.setSound(save.sound);
   placeWorld();
@@ -517,6 +516,69 @@ async function importProgress() {
   sound.buy();
 }
 function syncImportButton() { show('btnImport', standalone() && freshSave()); }
+
+// ---------- для родителей: 3 секунды держать надпись «Sofya Car» ----------
+let logoTimer = 0;
+const logo = document.querySelector('#menu .logo');
+logo.addEventListener('pointerdown', () => {
+  clearTimeout(logoTimer);
+  logoTimer = setTimeout(openParent, 3000);
+});
+for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) logo.addEventListener(ev, () => clearTimeout(logoTimer));
+let parentOpenedAt = 0;
+// после долгого нажатия палец отпускают — этот «клик» не должен нажать кнопку панели
+const parentGuard = (fn) => (...a) => { if (performance.now() - parentOpenedAt > 600) fn(...a); };
+function openParent() {
+  if (state !== 'menu' || overlay) return;
+  parentOpenedAt = performance.now();
+  $('parentCopy').textContent = '📋 Скопировать прогресс';
+  show('parentMain', true);
+  show('parentConfirm', false);
+  show('parentCard', true);
+  sound.click();
+}
+function closeParent() { holdStop(); show('parentCard', false); }
+onClick('parentClose', parentGuard(closeParent));
+onClick('parentCopy', parentGuard(async () => {
+  const code = exportCode(save);
+  try { await navigator.clipboard.writeText(code); $('parentCopy').textContent = '✓ Скопировано'; sound.buy(); }
+  catch (_) { window.prompt('Скопируйте этот код:', code); }
+}));
+onClick('parentPaste', parentGuard(async () => { await importProgress(); closeParent(); }));
+onClick('parentReset', parentGuard(() => { show('parentMain', false); show('parentConfirm', true); }));
+// сброс — только если держать кнопку 2 секунды
+let holdT = 0, holdRaf = 0;
+const holdBtn = $('parentHold');
+function holdStop() {
+  cancelAnimationFrame(holdRaf);
+  holdT = 0;
+  holdBtn.querySelector('i').style.width = '0';
+  holdBtn.classList.remove('full');
+}
+holdBtn.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  if (performance.now() - parentOpenedAt < 600) return;
+  try { holdBtn.setPointerCapture(e.pointerId); } catch (_) { /* */ }
+  const start = performance.now();
+  const tick = (now) => {
+    holdT = (now - start) / 2000;
+    holdBtn.querySelector('i').style.width = Math.min(100, holdT * 100) + '%';
+    if (holdT >= 1) { holdBtn.classList.add('full'); resetProgress(); return; }
+    holdRaf = requestAnimationFrame(tick);
+  };
+  holdRaf = requestAnimationFrame(tick);
+});
+for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) holdBtn.addEventListener(ev, () => { if (holdT < 1) holdStop(); });
+function resetProgress() {
+  const keep = { music: save.music, sound: save.sound, seen: { ...save.seen } };
+  replaceSave(save, { ...newSave(), ...keep });
+  persist(true, true);
+  placeWorld();
+  hudCache = {};
+  refresh();
+  sound.pop();
+  setTimeout(closeParent, 300);
+}
 
 // ---------- несколько копий игры (вкладка + иконка): берём самый свежий прогресс ----------
 function resync() {

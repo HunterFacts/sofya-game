@@ -59,14 +59,17 @@ let onConflict = null;
 // Вызывается, если другая копия игры (вкладка, иконка) уже записала более свежий прогресс
 export function setConflictHandler(fn) { onConflict = fn; }
 
-export function store(save, now = false) {
+// force — осознанная перезапись (сброс, перенос прогресса): без проверки на «более свежий» прогресс
+export function store(save, now = false, force = false) {
   clearTimeout(timer);
   const write = () => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      const stored = raw ? JSON.parse(raw).t || 0 : 0;
-      if (stored > (save.t || 0)) { if (onConflict) onConflict(); return; }
-    } catch (e) { /* испорченные данные — просто перезапишем */ }
+    if (!force) {
+      try {
+        const raw = localStorage.getItem(KEY);
+        const stored = raw ? JSON.parse(raw).t || 0 : 0;
+        if (stored > (save.t || 0)) { if (onConflict) onConflict(); return; }
+      } catch (e) { /* испорченные данные — просто перезапишем */ }
+    }
     save.t = Math.max(Date.now(), (save.t || 0) + 1);
     try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) { /* нет места */ }
   };
@@ -109,6 +112,5 @@ export function parseCode(text) {
   } catch (e) { return null; }
 }
 
-export function reset() {
-  try { localStorage.removeItem(KEY); } catch (e) { /* */ }
-}
+// Чистое сохранение «как в первый раз» (для сброса прогресса)
+export function freshSave() { return DEFAULT(); }

@@ -7,7 +7,7 @@
 // тогда остаётся старая рабочая версия) и включается при следующем открытии меню.
 // Поэтому при любом изменении файлов игры VERSION нужно увеличить, а новые файлы — вписать в FILES
 // (git-хук tools/pre-commit делает и проверяет это сам).
-const VERSION = 4;
+const VERSION = 5;
 const PREFIX = 'sofya-car-';
 const CACHE = PREFIX + VERSION;
 const FILES = [
