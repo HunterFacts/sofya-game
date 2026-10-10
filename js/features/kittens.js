@@ -577,8 +577,10 @@ function update(world, dt) {
       if (g.T < 0) continue;
       // выпрыгнули из кузова → взяли шарик → полетели вверх, держась рядом с машиной
       const sx = car.x + c * g.lx - s * cg.wallY, sy = car.y + s * g.lx + c * cg.wallY;
-      const fx = car.x - 1.5 + (g.i - (g.n - 1) / 2) * 0.85 + Math.sin(g.T * 2 + g.cr.ph) * 0.2;
-      const fy = car.y - 1.7 - Math.pow(Math.max(0, g.T - 0.45), 1.7) * 1.5;
+      // спрыгивают назад с кузова и поднимаются позади машины (не под карточкой «уровень пройден»)
+      const up = Math.max(0, g.T - 0.45);
+      const fx = car.x - 2.6 - g.i * 0.8 - up * 0.45 + Math.sin(g.T * 2 + g.cr.ph) * 0.2;
+      const fy = car.y - 1.2 - (g.i % 2) * 0.4 - Math.pow(up, 1.7) * 1.4;
       if (g.T < 0.45) {
         const p = g.T / 0.45, e = p * p * (3 - 2 * p);
         g.x = sx + (fx - sx) * e;
